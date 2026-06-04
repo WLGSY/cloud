@@ -1,0 +1,43 @@
+# 服务器配置
+server:
+  port: 8085
+
+# Spring 基础配置
+spring:
+  application:
+    name: points-service
+
+  # 激活的配置文件
+  profiles:
+    active: dev
+
+  # Nacos 配置导入
+  config:
+    import:
+      - optional:nacos:points-service-dev.yaml
+
+  # Nacos 服务发现和配置中心
+  cloud:
+    nacos:
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
+        prefix: points-service
+        import-check:
+          enabled: false
+      discovery:
+        server-addr: localhost:8848
+
+  # RabbitMQ 消息队列配置
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    virtual-host: /
+    connection-timeout: 5000
+
+# 日志配置
+logging:
+  level:
+    com.hnkjzy: debug

@@ -1,0 +1,25 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: notification-service
+
+  # ===== RabbitMQ 配置 =====
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 1
+        concurrency: 1
+        max-concurrency: 1
+
+logging:
+  level:
+    com.hnkjzy: debug
+    org.springframework.amqp.rabbit: debug

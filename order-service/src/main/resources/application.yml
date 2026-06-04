@@ -1,0 +1,56 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: order-service
+
+  config:
+    import:
+      - optional:nacos:order-service-dev.yaml
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+    sentinel:
+      transport:
+        dashboard: localhost:8080
+        port: 8719
+      eager: true
+      web-context-unify: true
+
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 10000
+
+  # ===== RabbitMQ 配置 =====
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    virtual-host: /
+    connection-timeout: 5000
+    # 启用发布确认
+    publisher-confirm-type: correlated
+    publisher-returns: true
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/cloud_takeout?useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    com.hnkjzy: debug
+    org.springframework.amqp: debug

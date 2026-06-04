@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: order-service           # 服务名，用于读取配置
+  cloud:
+    nacos:
+      config:
+        server-addr: localhost:8848      # Nacos服务器地址
+        file-extension: yaml             # 配置文件格式
+        refresh-enabled: true            # 开启自动刷新
+        refresh-interval: 2000           # 刷新间隔（毫秒）
+  profiles:
+    active: dev                          # 当前激活的环境

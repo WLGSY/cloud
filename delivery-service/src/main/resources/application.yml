@@ -1,0 +1,30 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: delivery-service
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    virtual-host: /
+    connection-timeout: 5000
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 1
+        concurrency: 1
+        max-concurrency: 3
+
+logging:
+  level:
+    com.hnkjzy: debug
+    org.springframework.amqp.rabbit: debug
