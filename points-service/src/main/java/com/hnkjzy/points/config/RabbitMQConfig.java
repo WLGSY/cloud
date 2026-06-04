@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.listener.RabbitListenerContainerFactory;
-import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -25,22 +25,55 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_PAY = "order.pay";
     public static final String ROUTING_KEY_CANCEL = "order.cancel";
 
+    // 死信配置（必须与 order-service 完全一致）
+    public static final String DEAD_EXCHANGE = "dead.exchange";
+    public static final String DEAD_LETTER_QUEUE = "dead.letter.queue";
+    public static final String DEAD_ROUTING_KEY = "dead.letter";
+
+    // ========== 死信交换机与队列 ==========
+
+    @Bean
+    public DirectExchange deadExchange() {
+        return ExchangeBuilder.directExchange(DEAD_EXCHANGE).durable(true).build();
+    }
+
+    @Bean
+    public Queue deadLetterQueue() {
+        return QueueBuilder.durable(DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    public Binding deadLetterBinding() {
+        return BindingBuilder.bind(deadLetterQueue()).to(deadExchange()).with(DEAD_ROUTING_KEY);
+    }
+
+    // ========== 业务队列（与 order-service 配置完全一致，带死信参数） ==========
+
     @Bean
     public Queue orderCreateQueue() {
         log.info("声明订单创建队列: {}", ORDER_CREATE_QUEUE);
-        return QueueBuilder.durable(ORDER_CREATE_QUEUE).build();
+        return QueueBuilder.durable(ORDER_CREATE_QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DEAD_ROUTING_KEY)
+                .build();
     }
 
     @Bean
     public Queue orderPayQueue() {
         log.info("声明订单支付队列: {}", ORDER_PAY_QUEUE);
-        return QueueBuilder.durable(ORDER_PAY_QUEUE).build();
+        return QueueBuilder.durable(ORDER_PAY_QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DEAD_ROUTING_KEY)
+                .build();
     }
 
     @Bean
     public Queue orderCancelQueue() {
         log.info("声明订单取消队列: {}", ORDER_CANCEL_QUEUE);
-        return QueueBuilder.durable(ORDER_CANCEL_QUEUE).build();
+        return QueueBuilder.durable(ORDER_CANCEL_QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DEAD_ROUTING_KEY)
+                .build();
     }
 
     @Bean
@@ -51,52 +84,51 @@ public class RabbitMQConfig {
 
     @Bean
     public Binding orderCreateBinding() {
-        log.info("绑定订单创建队列: {} -> {} -> {}", ORDER_EXCHANGE, ROUTING_KEY_CREATE, ORDER_CREATE_QUEUE);
         return BindingBuilder.bind(orderCreateQueue()).to(orderExchange()).with(ROUTING_KEY_CREATE);
     }
 
     @Bean
     public Binding orderPayBinding() {
-        log.info("绑定订单支付队列: {} -> {} -> {}", ORDER_EXCHANGE, ROUTING_KEY_PAY, ORDER_PAY_QUEUE);
         return BindingBuilder.bind(orderPayQueue()).to(orderExchange()).with(ROUTING_KEY_PAY);
     }
 
     @Bean
     public Binding orderCancelBinding() {
-        log.info("绑定订单取消队列: {} -> {} -> {}", ORDER_EXCHANGE, ROUTING_KEY_CANCEL, ORDER_CANCEL_QUEUE);
         return BindingBuilder.bind(orderCancelQueue()).to(orderExchange()).with(ROUTING_KEY_CANCEL);
     }
+
+    // ========== 消息转换器（使用 Map 反序列化，避免类型匹配问题） ==========
 
     @Bean
     public MessageConverter jsonMessageConverter() {
         log.info("配置JSON消息转换器（支持信任所有包）");
-        
+
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        
+
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter(objectMapper);
         converter.setCreateMessageIds(true);
-        
-        // 配置信任包，解决反序列化问题
+
+        // 信任所有包，消费者使用 Map<String, Object> 接收，避免 __TypeId__ 类型匹配失败
         DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
-        typeMapper.setTrustedPackages("com.hnkjzy.*", "java.util", "java.lang", "java.math", "*");
+        typeMapper.setTrustedPackages("*");
         converter.setJavaTypeMapper(typeMapper);
-        
+
         return converter;
     }
 
     @Bean
     public RabbitListenerContainerFactory<?> rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            MessageConverter messageConverter) {
+            MessageConverter jsonMessageConverter) {
         log.info("配置RabbitListenerContainerFactory");
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
-        factory.setMessageConverter(messageConverter);
+        factory.setMessageConverter(jsonMessageConverter);
         factory.setConcurrentConsumers(1);
         factory.setMaxConcurrentConsumers(3);
-        factory.setAcknowledgeMode(org.springframework.amqp.core.AcknowledgeMode.AUTO);
+        factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         return factory;
     }
 }

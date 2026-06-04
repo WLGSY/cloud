@@ -16,7 +16,7 @@ public class OrderMessageConsumer {
     @Autowired
     private PointsConfig pointsConfig;
 
-    @RabbitListener(queues = "order.create.queue")
+    @RabbitListener(queues = "order.create.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderCreated(Map<String, Object> message) {
         log.info("========== 积分服务收到订单创建消息 ==========");
         log.info("消息内容: {}", message);
@@ -24,7 +24,7 @@ public class OrderMessageConsumer {
         log.info("==========================================");
     }
 
-    @RabbitListener(queues = "order.pay.queue")
+    @RabbitListener(queues = "order.pay.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderPaid(Map<String, Object> message) {
         log.info("========== 积分服务收到订单支付消息 ==========");
         log.info("消息内容: {}", message);
@@ -38,27 +38,32 @@ public class OrderMessageConsumer {
         try {
             Long orderId = Long.valueOf(message.get("orderId").toString());
             Long userId = Long.valueOf(message.get("userId").toString());
-            String username = (String) message.get("username");
+            String username = getString(message, "username");
             BigDecimal amount = new BigDecimal(message.get("totalAmount").toString());
 
             int rate = pointsConfig.getRate();
             int earned = Math.min(amount.intValue() * rate, pointsConfig.getMaxPerOrder());
 
-            log.info("[积分增加] 用户: {} (ID: {}), 订单ID: {}, 订单金额: {}元, 获得积分: {}分", 
+            log.info("[积分增加] 用户: {} (ID: {}), 订单ID: {}, 订单金额: {}元, 获得积分: {}分",
                     username, userId, orderId, amount, earned);
             log.info("[积分服务] 订单支付成功，积分增加完成");
-            log.info("==========================================");
         } catch (Exception e) {
             log.error("[积分服务] 处理订单支付消息失败: {}", e.getMessage(), e);
-            log.info("==========================================");
         }
+
+        log.info("==========================================");
     }
 
-    @RabbitListener(queues = "order.cancel.queue")
+    @RabbitListener(queues = "order.cancel.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderCancelled(Map<String, Object> message) {
         log.info("========== 积分服务收到订单取消消息 ==========");
         log.info("消息内容: {}", message);
         log.info("[积分服务] 订单取消，不增加积分");
         log.info("==========================================");
+    }
+
+    private String getString(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        return val != null ? val.toString() : "";
     }
 }
