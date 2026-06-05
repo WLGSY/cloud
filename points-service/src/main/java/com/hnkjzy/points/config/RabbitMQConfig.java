@@ -8,6 +8,7 @@ import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFacto
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.listener.RabbitListenerContainerFactory;
 import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
+import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -17,9 +18,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String ORDER_CREATE_QUEUE = "order.create.queue";
-    public static final String ORDER_PAY_QUEUE = "order.pay.queue";
-    public static final String ORDER_CANCEL_QUEUE = "order.cancel.queue";
+    public static final String ORDER_CREATE_QUEUE = "points.order.create.queue";
+    public static final String ORDER_PAY_QUEUE = "points.order.pay.queue";
+    public static final String ORDER_CANCEL_QUEUE = "points.order.cancel.queue";
     public static final String ORDER_EXCHANGE = "order.exchange";
     public static final String ROUTING_KEY_CREATE = "order.create";
     public static final String ROUTING_KEY_PAY = "order.pay";
@@ -101,7 +102,7 @@ public class RabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        log.info("配置JSON消息转换器（支持信任所有包）");
+        log.info("配置JSON消息转换器（支持信任所有包并推断类型）");
 
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
@@ -110,9 +111,10 @@ public class RabbitMQConfig {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter(objectMapper);
         converter.setCreateMessageIds(true);
 
-        // 信任所有包，消费者使用 Map<String, Object> 接收，避免 __TypeId__ 类型匹配失败
+        // 核心修改：设置基于方法参数类型推断，忽略发送方的 DTO 类名，从而正常转换为 Map
         DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
-        typeMapper.setTrustedPackages("*");
+        typeMapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
+        typeMapper.setTrustedPackages("*"); 
         converter.setJavaTypeMapper(typeMapper);
 
         return converter;

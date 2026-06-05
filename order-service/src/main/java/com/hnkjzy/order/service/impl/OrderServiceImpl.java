@@ -131,7 +131,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Transactional
     public boolean cancelOrder(Long id, String reason) {
         Order order = this.getById(id);
-        if (order == null || order.getStatus() != 0) {
+        if (order == null) {
+            log.warn("订单不存在，订单ID: {}", id);
+            return false;
+        }
+        
+        // 只允许取消待支付(0)或已支付(1)的订单
+        if (order.getStatus() != 0 && order.getStatus() != 1) {
+            log.warn("订单状态不允许取消，订单ID: {}, 当前状态: {}", id, order.getStatus());
             return false;
         }
         
@@ -142,7 +149,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         boolean success = this.updateById(order);
         
         if (success) {
-            orderMessageSender.sendOrderCancelled(order);
+            try {
+                orderMessageSender.sendOrderCancelled(order);
+                log.info("[订单服务] 订单取消消息已发送，订单号: {}, 用户: {}, 原因: {}", 
+                        order.getOrderNo(), order.getUserName(), order.getCancelReason());
+            } catch (Exception e) {
+                log.error("[订单服务] 订单状态已更新，但取消消息发送失败，订单ID: {}", id, e);
+            }
         }
         
         return success;
@@ -183,7 +196,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (updated) {
                 try {
                     orderMessageSender.sendOrderCancelled(order);
-                    log.info("[订单服务] 订单取消成功，订单ID: {}", id);
+                    log.info("[订单服务] 订单取消消息已发送，订单号: {}, 用户: {}", 
+                            order.getOrderNo(), order.getUserName());
                 } catch (Exception e) {
                     log.error("[订单服务] 订单状态已更新，但消息发送失败，订单ID: {}", id, e);
                 }

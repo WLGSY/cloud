@@ -150,13 +150,13 @@ const loadingMore = ref(false)
 const defaultImage = 'https://picsum.photos/200/150?random=1'
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
-// 分类列表
+// 分类列表（value 改为数字ID，与数据库 category_id 对应）
 const categories = [
-  { label: '全部', value: 'all' },
-  { label: '热销推荐', value: 'hot' },
-  { label: '主食', value: 'main' },
-  { label: '小炒', value: 'stir' },
-  { label: '汤类', value: 'soup' }
+  { label: '全部', value: '' },
+  { label: '热销推荐', value: 1 },
+  { label: '主食', value: 2 },
+  { label: '小炒', value: 3 },
+  { label: '汤类', value: 4 }
 ]
 
 // 计算属性
@@ -417,4 +417,3 @@ onMounted(() => {
     margin: 0 16px;
   }
 }
-</style>

@@ -12,7 +12,15 @@ spring:
       discovery:
         locator:
           enabled: false
-          lower-case-service-id: true
+      # 新增：全局CORS跨域配置
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:5173"
+            allowedMethods: [GET,POST,PUT,DELETE,OPTIONS]
+            allowedHeaders: ["Content-Type","Authorization"]
+            allowCredentials: true
+
       routes:
         # 用户服务路由
         - id: user-service

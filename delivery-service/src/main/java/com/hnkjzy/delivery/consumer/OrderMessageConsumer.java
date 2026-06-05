@@ -10,7 +10,7 @@ import java.util.Map;
 @Component
 public class OrderMessageConsumer {
 
-    @RabbitListener(queues = "order.pay.queue", containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "delivery.order.pay.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderPaid(Map<String, Object> message) {
         log.info("========== 物流服务收到订单支付消息 ==========");
         log.info("消息内容: {}", message);
@@ -30,7 +30,7 @@ public class OrderMessageConsumer {
         log.info("==========================================");
     }
 
-    @RabbitListener(queues = "order.cancel.queue", containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "delivery.order.cancel.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderCancelled(Map<String, Object> message) {
         log.info("========== 物流服务收到订单取消消息 ==========");
         log.info("消息内容: {}", message);

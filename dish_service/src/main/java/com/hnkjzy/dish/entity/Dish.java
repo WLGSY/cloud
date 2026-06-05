@@ -20,5 +20,7 @@ public class Dish {
     private String image;
     private Integer status;
     private Long categoryId;
+    private Integer sales;
+    private Integer isHot;
     private LocalDateTime createTime;
 }

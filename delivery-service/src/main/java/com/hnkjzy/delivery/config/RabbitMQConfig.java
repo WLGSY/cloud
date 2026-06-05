@@ -5,6 +5,8 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
+import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -14,8 +16,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String ORDER_PAY_QUEUE = "order.pay.queue";
-    public static final String ORDER_CANCEL_QUEUE = "order.cancel.queue";
+    public static final String ORDER_PAY_QUEUE = "delivery.order.pay.queue";
+    public static final String ORDER_CANCEL_QUEUE = "delivery.order.cancel.queue";
     public static final String ORDER_EXCHANGE = "order.exchange";
     public static final String ORDER_PAY_ROUTING_KEY = "order.pay";
     public static final String ORDER_CANCEL_ROUTING_KEY = "order.cancel";
@@ -86,9 +88,9 @@ public class RabbitMQConfig {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
         converter.setCreateMessageIds(true);
 
-        // 信任所有包，消费者使用 Map<String, Object> 接收
-        org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper typeMapper =
-                new org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper();
+        // 核心修改：强制推断类型，解决转 Map 失败的问题
+        DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
+        typeMapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
         typeMapper.setTrustedPackages("*");
         converter.setJavaTypeMapper(typeMapper);
 

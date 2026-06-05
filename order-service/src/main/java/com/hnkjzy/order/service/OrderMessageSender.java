@@ -4,6 +4,7 @@ import com.hnkjzy.order.config.RabbitMQConfig;
 import com.hnkjzy.order.dto.OrderMessageDTO;
 import com.hnkjzy.order.entity.Order;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -21,8 +22,9 @@ public class OrderMessageSender {
         log.info("[订单服务] 开始发送订单创建消息，订单ID: {}", order.getId());
 
         try {
+            String messageId = UUID.randomUUID().toString();
             OrderMessageDTO message = OrderMessageDTO.builder()
-                    .messageId(UUID.randomUUID().toString())
+                    .messageId(messageId)
                     .orderId(order.getId())
                     .orderNo(order.getOrderNo())
                     .userId(order.getUserId())
@@ -41,7 +43,8 @@ public class OrderMessageSender {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.ORDER_EXCHANGE,
                     RabbitMQConfig.ROUTING_KEY_CREATE,
-                    message);
+                    message,
+                    new CorrelationData(String.valueOf(order.getId())));
 
             log.info("[订单服务] ✓ 订单创建消息发送成功，订单ID: {}", order.getId());
         } catch (Exception e) {
@@ -55,8 +58,9 @@ public class OrderMessageSender {
         log.info("订单ID: {}, 订单号: {}, 用户: {}", order.getId(), order.getOrderNo(), order.getUserName());
 
         try {
+            String messageId = UUID.randomUUID().toString();
             OrderMessageDTO message = OrderMessageDTO.builder()
-                    .messageId(UUID.randomUUID().toString())
+                    .messageId(messageId)
                     .orderId(order.getId())
                     .orderNo(order.getOrderNo())
                     .userId(order.getUserId())
@@ -78,7 +82,8 @@ public class OrderMessageSender {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.ORDER_EXCHANGE,
                     RabbitMQConfig.ROUTING_KEY_PAY,
-                    message);
+                    message,
+                    new CorrelationData(String.valueOf(order.getId())));
 
             log.info("[订单服务] ✓ 订单支付消息发送成功，订单ID: {}", order.getId());
             log.info("==========================================");
@@ -93,8 +98,9 @@ public class OrderMessageSender {
         log.info("[订单服务] 开始发送订单取消消息，订单ID: {}", order.getId());
 
         try {
+            String messageId = UUID.randomUUID().toString();
             OrderMessageDTO message = OrderMessageDTO.builder()
-                    .messageId(UUID.randomUUID().toString())
+                    .messageId(messageId)
                     .orderId(order.getId())
                     .orderNo(order.getOrderNo())
                     .userId(order.getUserId())
@@ -115,7 +121,8 @@ public class OrderMessageSender {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.ORDER_EXCHANGE,
                     RabbitMQConfig.ROUTING_KEY_CANCEL,
-                    message);
+                    message,
+                    new CorrelationData(String.valueOf(order.getId())));
 
             log.info("[订单服务] ✓ 订单取消消息发送成功，订单ID: {}", order.getId());
         } catch (Exception e) {

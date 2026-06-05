@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
+import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -15,9 +17,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String ORDER_CREATE_QUEUE = "order.create.queue";
-    public static final String ORDER_PAY_QUEUE = "order.pay.queue";
-    public static final String ORDER_CANCEL_QUEUE = "order.cancel.queue";
+    public static final String ORDER_CREATE_QUEUE = "notification.order.create.queue";
+    public static final String ORDER_PAY_QUEUE = "notification.order.pay.queue";
+    public static final String ORDER_CANCEL_QUEUE = "notification.order.cancel.queue";
     public static final String ORDER_EXCHANGE = "order.exchange";
     public static final String ROUTING_KEY_CREATE = "order.create";
     public static final String ROUTING_KEY_PAY = "order.pay";
@@ -99,7 +101,7 @@ public class RabbitMQConfig {
 
     @Bean
     public MessageConverter messageConverter() {
-        log.info("配置JSON消息转换器");
+        log.info("配置JSON消息转换器（支持信任所有包并推断类型）");
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -107,9 +109,9 @@ public class RabbitMQConfig {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter(objectMapper);
         converter.setCreateMessageIds(true);
 
-        // 信任所有包，消费者使用 Map<String, Object> 接收，避免 __TypeId__ 类型匹配失败
-        org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper typeMapper =
-                new org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper();
+        // 核心修改：强制推断类型，解决转 Map 失败的问题
+        DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
+        typeMapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
         typeMapper.setTrustedPackages("*");
         converter.setJavaTypeMapper(typeMapper);
 

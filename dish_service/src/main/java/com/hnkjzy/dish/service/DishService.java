@@ -22,4 +22,7 @@ public interface DishService extends IService<Dish> {
     // ===== 查询功能 =====
     List<Dish> searchByName(String keyword);      // 模糊查询
     List<Dish> getPublishedDishes();              // 查询已发布菜品
+    
+    // 新增：获取菜品列表（支持分类、关键词搜索、分页）
+    List<Dish> getDishList(Long categoryId, String keyword);
 }

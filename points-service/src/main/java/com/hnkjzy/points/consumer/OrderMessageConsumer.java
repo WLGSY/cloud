@@ -16,7 +16,7 @@ public class OrderMessageConsumer {
     @Autowired
     private PointsConfig pointsConfig;
 
-    @RabbitListener(queues = "order.create.queue", containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "points.order.create.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderCreated(Map<String, Object> message) {
         log.info("========== 积分服务收到订单创建消息 ==========");
         log.info("消息内容: {}", message);
@@ -24,7 +24,7 @@ public class OrderMessageConsumer {
         log.info("==========================================");
     }
 
-    @RabbitListener(queues = "order.pay.queue", containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "points.order.pay.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderPaid(Map<String, Object> message) {
         log.info("========== 积分服务收到订单支付消息 ==========");
         log.info("消息内容: {}", message);
@@ -54,7 +54,7 @@ public class OrderMessageConsumer {
         log.info("==========================================");
     }
 
-    @RabbitListener(queues = "order.cancel.queue", containerFactory = "rabbitListenerContainerFactory")
+    @RabbitListener(queues = "points.order.cancel.queue", containerFactory = "rabbitListenerContainerFactory")
     public void handleOrderCancelled(Map<String, Object> message) {
         log.info("========== 积分服务收到订单取消消息 ==========");
         log.info("消息内容: {}", message);

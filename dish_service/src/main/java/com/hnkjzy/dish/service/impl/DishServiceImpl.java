@@ -89,4 +89,28 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
         wrapper.eq(Dish::getStatus, 1);
         return this.list(wrapper);
     }
+
+    // 新增：获取菜品列表（支持分类、关键词搜索、只返回上架状态）
+    @Override
+    public List<Dish> getDishList(Long categoryId, String keyword) {
+        LambdaQueryWrapper<Dish> wrapper = new LambdaQueryWrapper<>();
+        
+        // 只查询上架状态的菜品
+        wrapper.eq(Dish::getStatus, 1);
+        
+        // 按分类筛选
+        if (categoryId != null) {
+            wrapper.eq(Dish::getCategoryId, categoryId);
+        }
+        
+        // 按关键词搜索
+        if (keyword != null && !keyword.isEmpty()) {
+            wrapper.like(Dish::getName, keyword);
+        }
+        
+        // 排序：先按创建时间降序
+        wrapper.orderByDesc(Dish::getCreateTime);
+        
+        return this.list(wrapper);
+    }
 }
