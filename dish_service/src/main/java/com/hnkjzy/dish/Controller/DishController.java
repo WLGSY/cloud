@@ -20,32 +20,39 @@ public class DishController {
 
     // ===== 基础CRUD =====
 
-    // 新增：首页菜品列表查询接口（支持分页、分类、关键词搜索）
+    // 新增：首页菜品列表查询接口（支持分页、分类、关键词搜索、店铺筛选）
     @GetMapping("/list")
     public Result<PageResult<Dish>> list(@RequestParam(required = false) Long categoryId,
                                           @RequestParam(required = false) String keyword,
+                                          @RequestParam(required = false) Long shopId,
                                           @RequestParam(defaultValue = "1") Integer pageNum,
-                                          @RequestParam(defaultValue = "12") Integer pageSize) {
+                                          @RequestParam(defaultValue = "8") Integer pageSize) {
         // 构建分页对象
         Page<Dish> page = new Page<>(pageNum, pageSize);
-        
+
         // 构建查询条件
         LambdaQueryWrapper<Dish> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Dish::getStatus, 1); // 只查询上架状态
-        
+
+        // 商家端：按shopId查（不过滤status）；用户端：只查上架
+        if (shopId != null) {
+            wrapper.eq(Dish::getShopId, shopId);
+        } else {
+            wrapper.eq(Dish::getStatus, 1); // 用户端只查询上架状态
+        }
+
         if (categoryId != null) {
             wrapper.eq(Dish::getCategoryId, categoryId);
         }
-        
+
         if (keyword != null && !keyword.isEmpty()) {
             wrapper.like(Dish::getName, keyword);
         }
-        
+
         wrapper.orderByDesc(Dish::getCreateTime);
-        
+
         // 执行分页查询
         Page<Dish> resultPage = dishService.page(page, wrapper);
-        
+
         // 封装返回结果
         PageResult<Dish> pageResult = new PageResult<>(resultPage.getRecords(), resultPage.getTotal());
         return Result.success(pageResult);

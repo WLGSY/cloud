@@ -44,13 +44,16 @@
         <router-link to="/register">立即注册</router-link>
       </div>
 
-      <!-- 【修复】增强演示提示 -->
+      <div class="role-links">
+        <router-link to="/merchant/login">商家登录</router-link>
+        <span>|</span>
+        <router-link to="/admin/login">管理员登录</router-link>
+      </div>
+
       <div class="demo-tip">
-        <p>📢 演示账号（模拟模式）：</p>
-        <p>用户名: <strong>test</strong> / 密码: <strong>123456</strong></p>
-        <p>用户名: <strong>admin</strong> / 密码: <strong>admin123</strong></p>
-        <p style="color: #ff6b35; margin-top: 8px;">
-          💡 当前使用模拟登录，如需对接真实后端，请修改 src/api/user.js 中的 USE_MOCK = false
+        <p>📢 提示：请先注册账号再登录</p>
+        <p style="color: #999; margin-top: 8px;">
+          💡 注册需要填写用户名、手机号和密码
         </p>
       </div>
     </div>
@@ -97,16 +100,29 @@ const handleLogin = async () => {
     console.log('登录响应:', res)
 
     if (res.code === 200) {
-      const token = res.data?.token || res.token
-      const userInfo = res.data?.userInfo || res.userInfo || { username: form.username }
+      const token = res.data?.token
+      const userId = res.data?.userId
+      const username = res.data?.username
+      const role = res.data?.role || 'user'
 
       if (token) {
         userStore.setUser({
           token: token,
-          userInfo: userInfo
+          userInfo: {
+            id: userId,
+            username: username || form.username,
+            role: role
+          }
         })
         ElMessage.success('登录成功！')
-        router.push('/')
+        // 根据角色跳转不同首页
+        if (role === 'merchant') {
+          router.push('/merchant')
+        } else if (role === 'admin') {
+          router.push('/admin')
+        } else {
+          router.push('/')
+        }
       } else {
         ElMessage.error('登录响应中没有token')
       }
@@ -155,6 +171,19 @@ const handleLogin = async () => {
 .register-link a {
   color: #667eea;
   text-decoration: none;
+}
+.role-links {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #ccc;
+}
+.role-links a {
+  color: #999;
+  text-decoration: none;
+  margin: 0 8px;
+}
+.role-links a:hover {
+  color: #667eea;
 }
 .demo-tip {
   margin-top: 24px;

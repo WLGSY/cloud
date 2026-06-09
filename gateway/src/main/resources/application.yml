@@ -16,10 +16,11 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "http://localhost:5173"
-            allowedMethods: [GET,POST,PUT,DELETE,OPTIONS]
-            allowedHeaders: ["Content-Type","Authorization"]
-            allowCredentials: true
+            allowedOrigins: "*"
+            allowedMethods: [GET,POST,PUT,DELETE,OPTIONS,PATCH]
+            allowedHeaders: ["Content-Type","Authorization","X-Requested-With","Accept","Origin"]
+            allowCredentials: false
+            maxAge: 3600
 
       routes:
         # 用户服务路由
@@ -49,6 +50,24 @@ spring:
             - StripPrefix=1
             - AddResponseHeader=X-Service, order-service
 
+        # 店铺服务路由（由user-service托管）
+        - id: shop-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/shop/**
+          filters:
+            - StripPrefix=1
+            - AddResponseHeader=X-Service, shop-service
+
+        # 积分服务路由
+        - id: points-service
+          uri: lb://points-service
+          predicates:
+            - Path=/api/points/**
+          filters:
+            - StripPrefix=1
+            - AddResponseHeader=X-Service, points-service
+
     # Sentinel配置
     sentinel:
       transport:
@@ -75,6 +94,7 @@ whitelist:
   paths:
     - /api/user/login
     - /api/user/register
+    - /api/shop/register
     - /api/dish/list
     - /api/dish/search
     - /api/dish/test/host

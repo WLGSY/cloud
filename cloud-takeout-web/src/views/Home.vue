@@ -1,50 +1,21 @@
 <template>
   <div class="home">
-    <!-- 顶部导航栏 -->
-    <header class="header">
-      <div class="header-content">
-        <div class="logo" @click="goHome">🍔 云外卖</div>
-
-        <div class="search-box">
-          <el-input
-            v-model="keyword"
-            placeholder="搜索菜品..."
-            :prefix-icon="Search"
-            size="large"
-            clearable
-            @clear="loadDishes"
-            @keyup.enter="searchDish"
-          >
-            <template #append>
-              <el-button @click="searchDish">搜索</el-button>
-            </template>
-          </el-input>
-        </div>
-
-        <div class="header-actions">
-          <el-badge :value="cartStore.totalCount" :hidden="cartStore.totalCount === 0">
-            <el-button circle @click="goCart">
-              <el-icon><ShoppingCart /></el-icon>
-            </el-button>
-          </el-badge>
-
-          <el-dropdown @command="handleCommand">
-            <span class="user-info">
-              <el-avatar :size="32" :src="userStore.userInfo?.avatar || defaultAvatar" />
-              <span>{{ userStore.userInfo?.username || '未登录' }}</span>
-              <el-icon><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="orders">我的订单</el-dropdown-item>
-                <el-dropdown-item command="points">我的积分</el-dropdown-item>
-                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </div>
-    </header>
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+      <el-input
+        v-model="keyword"
+        placeholder="搜索菜品..."
+        :prefix-icon="Search"
+        size="large"
+        clearable
+        @clear="loadDishes"
+        @keyup.enter="searchDish"
+      >
+        <template #append>
+          <el-button @click="searchDish">搜索</el-button>
+        </template>
+      </el-input>
+    </div>
 
     <!-- 分类导航 -->
     <div class="category-nav">
@@ -107,8 +78,13 @@
         </div>
       </div>
 
+      <!-- 分页信息 -->
+      <div class="pagination-info" v-if="dishList.length > 0">
+        <span>已展示 {{ dishList.length }} / {{ total }} 个菜品</span>
+      </div>
+
       <!-- 加载更多 -->
-      <div class="load-more" v-if="hasMore">
+      <div class="load-more" v-if="checkHasMore">
         <el-button text @click="loadMore" :loading="loadingMore">加载更多</el-button>
       </div>
     </div>
@@ -128,31 +104,28 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search, ShoppingCart, ArrowDown, Plus } from '@element-plus/icons-vue'
+import { Search, Plus } from '@element-plus/icons-vue'
 import { dishApi } from '@/api/dish'
-import { useUserStore } from '@/stores/user'
 import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
-const userStore = useUserStore()
 const cartStore = useCartStore()
 
 // 数据定义
 const keyword = ref('')
-const activeCategory = ref('all')
+const activeCategory = ref(null)
 const dishList = ref([])
 const pageNum = ref(1)
-const pageSize = ref(12)
+const pageSize = ref(8)
 const total = ref(0)
 const loading = ref(false)
 const loadingMore = ref(false)
 
 const defaultImage = 'https://picsum.photos/200/150?random=1'
-const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
 // 分类列表（value 改为数字ID，与数据库 category_id 对应）
 const categories = [
-  { label: '全部', value: '' },
+  { label: '全部', value: null },
   { label: '热销推荐', value: 1 },
   { label: '主食', value: 2 },
   { label: '小炒', value: 3 },
@@ -169,17 +142,42 @@ const hasMore = computed(() => {
   return dishList.value.length < total.value
 })
 
+const checkHasMore = computed(() => {
+  if (total.value === 0) return false
+  return dishList.value.length < total.value
+})
+
 // 加载菜品列表
 const loadDishes = async () => {
   loading.value = true
   try {
     const params = {
       pageNum: pageNum.value,
-      pageSize: pageSize.value,
-      keyword: keyword.value,
-      category: activeCategory.value === 'all' ? '' : activeCategory.value
+      pageSize: pageSize.value
     }
+
+    // 只在有值时才添加参数
+    if (keyword.value && keyword.value.trim()) {
+      params.keyword = keyword.value.trim()
+    }
+
+    if (activeCategory.value !== null && activeCategory.value !== undefined) {
+      params.categoryId = activeCategory.value
+    }
+
+    console.log('========== 请求参数 ==========')
+    console.log('pageNum:', pageNum.value)
+    console.log('pageSize:', pageSize.value)
+    console.log('完整参数:', params)
+
     const res = await dishApi.getList(params)
+
+    console.log('========== 响应数据 ==========')
+    console.log('响应:', res)
+    console.log('data.list:', res.data?.list)
+    console.log('data.total:', res.data?.total)
+    console.log('list长度:', res.data?.list?.length)
+
     if (res.code === 200) {
       if (pageNum.value === 1) {
         dishList.value = res.data.list || []
@@ -187,9 +185,14 @@ const loadDishes = async () => {
         dishList.value = [...dishList.value, ...(res.data.list || [])]
       }
       total.value = res.data.total || 0
+      console.log('========== 更新后的状态 ==========')
+      console.log('dishList.length:', dishList.value.length)
+      console.log('total:', total.value)
+      console.log('当前显示的菜品数:', dishList.value.length)
     }
   } catch (error) {
     console.error('加载菜品失败', error)
+    ElMessage.error('菜品列表加载失败')
   } finally {
     loading.value = false
   }
@@ -197,7 +200,7 @@ const loadDishes = async () => {
 
 // 加载更多
 const loadMore = () => {
-  if (hasMore.value && !loadingMore.value) {
+  if (checkHasMore.value && !loadingMore.value) {
     pageNum.value++
     loadDishes()
   }
@@ -223,21 +226,7 @@ const addToCart = (dish) => {
 }
 
 // 跳转
-const goHome = () => router.push('/')
 const goCart = () => router.push('/cart')
-
-// 下拉菜单命令
-const handleCommand = (command) => {
-  if (command === 'logout') {
-    userStore.logout()
-    ElMessage.success('已退出登录')
-    router.push('/login')
-  } else if (command === 'orders') {
-    router.push('/orders')
-  } else if (command === 'points') {
-    router.push('/points')
-  }
-}
 
 // 生命周期
 onMounted(() => {
@@ -251,46 +240,11 @@ onMounted(() => {
   background: #f5f5f5;
 }
 
-/* 头部导航 */
-.header {
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.logo {
-  font-size: 24px;
-  font-weight: bold;
-  cursor: pointer;
-  color: #ff6b35;
-  white-space: nowrap;
-}
-.search-box {
-  flex: 1;
-  max-width: 500px;
-  margin: 0 40px;
-}
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 24px;
+/* 搜索栏 */
+.search-bar {
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 0 20px;
 }
 
 /* 分类导航 */
@@ -398,14 +352,15 @@ onMounted(() => {
   font-size: 12px;
   color: #999;
 }
-.dish-actions {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
+.pagination-info {
+  text-align: center;
+  margin-top: 24px;
+  color: #999;
+  font-size: 14px;
 }
 .load-more {
   text-align: center;
-  margin-top: 40px;
+  margin-top: 24px;
 }
 
 /* 响应式 */
@@ -417,3 +372,4 @@ onMounted(() => {
     margin: 0 16px;
   }
 }
+</style>

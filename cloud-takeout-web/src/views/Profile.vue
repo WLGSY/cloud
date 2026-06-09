@@ -3,15 +3,35 @@
     <h2>👤 个人资料</h2>
 
     <el-row :gutter="20">
-      <!-- 左侧：头像 -->
+      <!-- 左侧：头像和统计 -->
       <el-col :span="8">
         <el-card class="avatar-card">
           <div class="avatar-section">
-            <el-avatar :size="120" :src="userInfo.avatar || defaultAvatar" />
+            <el-avatar :size="120" :src="userInfo.avatar || defaultAvatar">
+              {{ (userInfo.nickname || userInfo.username || 'U')[0]?.toUpperCase() }}
+            </el-avatar>
             <h3>{{ userInfo.nickname || userInfo.username }}</h3>
-            <p class="role">{{ roleText }}</p>
-            <el-button type="primary" plain size="small" @click="handleChangeAvatar">
-              更换头像
+            <p class="role">
+              <el-tag :type="roleTagType" size="small">{{ roleText }}</el-tag>
+            </p>
+            <p class="join-date" v-if="userInfo.createTime">
+              注册时间：{{ formatDate(userInfo.createTime) }}
+            </p>
+          </div>
+        </el-card>
+
+        <!-- 快捷操作 -->
+        <el-card class="quick-actions-card">
+          <template #header><span>快捷操作</span></template>
+          <div class="quick-actions">
+            <el-button type="primary" plain @click="router.push('/orders')" style="width:100%;margin-bottom:8px">
+              📋 我的订单
+            </el-button>
+            <el-button type="success" plain @click="router.push('/points')" style="width:100%;margin-bottom:8px">
+              ⭐ 我的积分
+            </el-button>
+            <el-button type="warning" plain @click="passwordDialogVisible = true" style="width:100%">
+              🔒 修改密码
             </el-button>
           </div>
         </el-card>
@@ -121,6 +141,17 @@ const roleText = computed(() => {
   const map = { user: '普通用户', merchant: '商家', admin: '管理员', rider: '骑手' }
   return map[userInfo.value?.role] || '普通用户'
 })
+const roleTagType = computed(() => {
+  const map = { user: 'info', merchant: 'warning', admin: 'danger', rider: 'success' }
+  return map[userInfo.value?.role] || 'info'
+})
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+}
 
 // 表单数据
 const form = reactive({
@@ -170,7 +201,23 @@ const passwordRules = {
   ]
 }
 
-// 加载用户信息
+// 从后端加载用户信息
+const fetchUserInfo = async () => {
+  try {
+    const res = await userApi.getUserInfo()
+    if (res.code === 200) {
+      // 更新本地 userStore
+      userStore.setUser({
+        token: userStore.token,
+        userInfo: res.data
+      })
+    }
+  } catch (error) {
+    console.error('加载用户信息失败', error)
+  }
+}
+
+// 加载用户信息到表单
 const loadUserInfo = () => {
   form.username = userInfo.value?.username || ''
   form.nickname = userInfo.value?.nickname || ''
@@ -190,10 +237,11 @@ const saveProfile = async () => {
     const res = await userApi.updateUserInfo(form)
     if (res.code === 200) {
       ElMessage.success('保存成功')
-      // 更新本地用户信息
+      // 后端返回更新后的用户数据，用它更新
+      const updatedData = res.data || {}
       userStore.setUser({
         token: userStore.token,
-        userInfo: { ...userStore.userInfo, ...form }
+        userInfo: { ...userStore.userInfo, ...form, ...updatedData }
       })
     }
   } catch (error) {
@@ -207,11 +255,6 @@ const saveProfile = async () => {
 // 重置表单
 const resetForm = () => {
   loadUserInfo()
-}
-
-// 更换头像
-const handleChangeAvatar = () => {
-  ElMessage.info('头像功能开发中，敬请期待')
 }
 
 // 修改密码（对接后端）
@@ -252,7 +295,8 @@ const handleLogout = () => {
   }).catch(() => {})
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchUserInfo()
   loadUserInfo()
 })
 </script>
@@ -276,8 +320,18 @@ onMounted(() => {
   margin: 16px 0 8px;
 }
 .role {
+  margin-bottom: 12px;
+}
+.join-date {
   color: #999;
-  margin-bottom: 16px;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.quick-actions-card {
+  margin-top: 20px;
+}
+.quick-actions {
+  padding: 8px 0;
 }
 .profile-actions {
   margin-top: 20px;

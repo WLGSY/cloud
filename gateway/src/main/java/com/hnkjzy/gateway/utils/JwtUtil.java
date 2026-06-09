@@ -40,6 +40,14 @@ public class JwtUtil {
         return null;
     }
 
+    public String getRoleFromToken(String token) {
+        Claims claims = parseToken(token);
+        if (claims != null) {
+            return (String) claims.get("role");
+        }
+        return null;
+    }
+
     private Claims parseToken(String token) {
         try {
             SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));

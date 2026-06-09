@@ -3,10 +3,11 @@
     <h2>📋 我的订单</h2>
 
     <!-- 状态选项卡 -->
-    <el-tabs v-model="activeStatus" @tab-click="loadOrders">
+    <el-tabs v-model="activeStatus" @tab-change="handleTabChange">
       <el-tab-pane label="全部订单" name="all"></el-tab-pane>
       <el-tab-pane label="待支付" name="0"></el-tab-pane>
       <el-tab-pane label="已支付" name="1"></el-tab-pane>
+      <el-tab-pane label="已完成" name="3"></el-tab-pane>
       <el-tab-pane label="已取消" name="2"></el-tab-pane>
     </el-tabs>
 
@@ -30,26 +31,38 @@
             <span class="order-no">订单号：{{ order.orderNo }}</span>
             <span class="order-time">{{ order.createTime }}</span>
           </div>
-          <span class="order-status" :class="getStatusClass(order.status)">
-            {{ getStatusText(order.status) }}
-          </span>
+          <el-tag :type="getStatusTagType(order.status)" size="small">
+            {{ order.statusText || getStatusText(order.status) }}
+          </el-tag>
         </div>
 
         <div class="order-content">
           <div class="order-items">
-            <!-- 兼容后端不返回items的情况 -->
             <div v-for="item in (order.items || [])" :key="item.dishId" class="order-item">
-              {{ item.name }} x {{ item.quantity }}
+              <span class="item-name">{{ item.name }}</span>
+              <span class="item-qty">x{{ item.quantity }}</span>
+              <span class="item-price">¥{{ item.price }}</span>
             </div>
-            <!-- 如果订单项为空，显示总数 -->
             <div v-if="!order.items || order.items.length === 0" class="order-item-placeholder">
               共 {{ order.totalCount || 0 }} 件商品
             </div>
           </div>
+          <div class="order-meta" v-if="order.receiver">
+            <span class="meta-item">📦 {{ order.receiver }}</span>
+            <span class="meta-item" v-if="order.address">📍 {{ order.address }}</span>
+          </div>
           <div class="order-amount">¥{{ order.totalAmount }}</div>
         </div>
 
+        <!-- 支付时间 -->
+        <div class="order-paytime" v-if="order.payTime">
+          <span>💳 支付时间：{{ order.payTime }}</span>
+        </div>
+
         <div class="order-footer">
+          <el-button link type="primary" size="small" @click="showOrderDetail(order)">
+            查看详情
+          </el-button>
           <div class="order-actions">
             <el-button
               v-if="order.status === 0"
@@ -69,11 +82,11 @@
             </el-button>
             <el-button
               v-if="order.status === 1"
-              type="info"
+              type="success"
               size="small"
-              @click="handleTrack(order.id)"
+              @click="handleComplete(order.id)"
             >
-              查看物流
+              确认收货
             </el-button>
           </div>
         </div>
@@ -98,13 +111,50 @@
       <div class="pay-demo">
         <p>订单号：{{ currentOrder?.orderNo }}</p>
         <p>金额：<strong>¥{{ currentOrder?.totalAmount }}</strong></p>
-        <p class="pay-tip">点击确认后，订单状态将变为已支付</p>
+        <p class="pay-tip">点击确认后，订单状态将变为已支付，同时获得积分</p>
       </div>
       <template #footer>
         <el-button @click="payDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="confirmPay" :loading="payLoading">
           确认支付
         </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 订单详情弹窗 -->
+    <el-dialog v-model="detailDialogVisible" title="订单详情" width="560px">
+      <template v-if="detailOrder">
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="订单号">{{ detailOrder.orderNo }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusTagType(detailOrder.status)" size="small">
+              {{ detailOrder.statusText || getStatusText(detailOrder.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="下单时间">{{ detailOrder.createTime }}</el-descriptions-item>
+          <el-descriptions-item label="支付时间">{{ detailOrder.payTime || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="收货人">{{ detailOrder.receiver || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ detailOrder.userPhone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="收货地址" :span="2">{{ detailOrder.address || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{ detailOrder.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="订单金额">
+            <strong style="color:#ff6b35">¥{{ detailOrder.totalAmount }}</strong>
+          </el-descriptions-item>
+          <el-descriptions-item label="商品数量">{{ detailOrder.totalCount || 0 }} 件</el-descriptions-item>
+        </el-descriptions>
+
+        <div class="detail-items" v-if="detailOrder.items && detailOrder.items.length > 0">
+          <h4 style="margin: 16px 0 8px">菜品明细</h4>
+          <div class="detail-item" v-for="item in detailOrder.items" :key="item.dishId">
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-qty">x{{ item.quantity }}</span>
+            <span class="item-price">¥{{ item.price }}</span>
+            <span class="item-subtotal">小计：¥{{ (item.price * item.quantity).toFixed(2) }}</span>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -126,16 +176,25 @@ const loading = ref(false)
 const payDialogVisible = ref(false)
 const payLoading = ref(false)
 const currentOrder = ref(null)
+const detailDialogVisible = ref(false)
+const detailOrder = ref(null)
 
-// 状态映射
+// 状态文本映射
 const getStatusText = (status) => {
-  const map = { 0: '待支付', 1: '已支付', 2: '已取消' }
+  const map = { 0: '待支付', 1: '已支付', 2: '已取消', 3: '已完成' }
   return map[status] || '未知'
 }
 
-const getStatusClass = (status) => {
-  const map = { 0: 'status-pending', 1: 'status-paid', 2: 'status-cancelled' }
-  return map[status] || ''
+// 状态标签颜色
+const getStatusTagType = (status) => {
+  const map = { 0: 'warning', 1: 'success', 2: 'info', 3: '' }
+  return map[status] || 'info'
+}
+
+// 选项卡切换
+const handleTabChange = () => {
+  pageNum.value = 1
+  loadOrders()
 }
 
 // 加载订单列表（对接后端）
@@ -214,8 +273,34 @@ const handleCancel = (orderId) => {
 
 // 查看物流（对接物流服务）
 const handleTrack = (orderId) => {
-  // 对接物流服务，查询配送状态
   ElMessage.info('物流功能开发中，敬请期待')
+}
+
+// 查看订单详情
+const showOrderDetail = (order) => {
+  detailOrder.value = order
+  detailDialogVisible.value = true
+}
+
+// 确认收货
+const handleComplete = async (orderId) => {
+  try {
+    await ElMessageBox.confirm('确认已收到商品吗？', '确认收货', {
+      confirmButtonText: '确认收货',
+      cancelButtonText: '取消',
+      type: 'success'
+    })
+    const res = await orderApi.complete(orderId)
+    if (res.code === 200) {
+      ElMessage.success('确认收货成功！')
+      loadOrders()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('确认收货失败', error)
+      ElMessage.error(error.response?.data?.message || '确认收货失败')
+    }
+  }
 }
 
 const goHome = () => {
@@ -266,49 +351,94 @@ onMounted(() => {
   color: #999;
   font-size: 14px;
 }
-.order-status {
-  font-weight: bold;
-}
-.status-pending {
-  color: #e6a23c;
-}
-.status-paid {
-  color: #67c23a;
-}
-.status-cancelled {
-  color: #f56c6c;
-}
 .order-content {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 .order-items {
   flex: 1;
+  min-width: 200px;
 }
 .order-item {
-  line-height: 1.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 2;
   color: #666;
+  font-size: 14px;
+}
+.item-name {
+  flex: 1;
+}
+.item-qty {
+  color: #999;
+}
+.item-price {
+  color: #ff6b35;
+  font-weight: 500;
+}
+.order-meta {
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.meta-item {
+  font-size: 12px;
+  color: #999;
 }
 .order-item-placeholder {
   color: #999;
   font-size: 14px;
 }
 .order-amount {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: bold;
   color: #ff6b35;
+  white-space: nowrap;
+  margin-left: 16px;
+}
+.order-paytime {
+  padding: 8px 0;
+  font-size: 13px;
+  color: #67c23a;
+  border-top: 1px dashed #eee;
 }
 .order-footer {
   padding-top: 12px;
   border-top: 1px solid #eee;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
 }
 .order-actions {
   display: flex;
   gap: 10px;
+}
+/* 详情弹窗 */
+.detail-items {
+  margin-top: 8px;
+}
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.item-subtotal {
+  margin-left: auto;
+  color: #ff6b35;
+  font-weight: 500;
 }
 .pagination {
   margin-top: 20px;

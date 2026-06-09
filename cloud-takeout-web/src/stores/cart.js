@@ -15,8 +15,18 @@ export const useCartStore = defineStore('cart', () => {
     return items.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
   })
 
+  // 当前购物车所属店铺ID
+  const shopId = ref(null)
+
   // 添加商品
   const addItem = (dish) => {
+    // 检查店铺归属：不同店铺的商品不能混在同一个购物车
+    if (shopId.value && dish.shopId && shopId.value !== dish.shopId) {
+      // 切换店铺，清空购物车
+      items.value = []
+    }
+    if (dish.shopId) shopId.value = dish.shopId
+
     const existing = items.value.find(item => item.dishId === dish.id)
     if (existing) {
       existing.quantity++
@@ -26,7 +36,8 @@ export const useCartStore = defineStore('cart', () => {
         name: dish.name,
         price: dish.price,
         quantity: 1,
-        image: dish.image
+        image: dish.image,
+        shopId: dish.shopId
       })
     }
     saveToLocal()
@@ -57,6 +68,7 @@ export const useCartStore = defineStore('cart', () => {
   // 清空购物车
   const clearCart = () => {
     items.value = []
+    shopId.value = null
     saveToLocal()
   }
 
@@ -67,6 +79,7 @@ export const useCartStore = defineStore('cart', () => {
 
   return {
     items,
+    shopId,
     totalCount,
     totalAmount,
     addItem,

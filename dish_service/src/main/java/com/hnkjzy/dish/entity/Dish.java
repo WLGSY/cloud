@@ -22,5 +22,6 @@ public class Dish {
     private Long categoryId;
     private Integer sales;
     private Integer isHot;
+    private Long shopId;          // 归属店铺ID
     private LocalDateTime createTime;
 }

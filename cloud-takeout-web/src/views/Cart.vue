@@ -144,6 +144,7 @@ const submitOrder = async () => {
     // 对接后端订单创建接口（实训6已实现）
     const orderData = {
       userId: userStore.userInfo?.id,
+      shopId: cartStore.shopId,
       items: cartStore.items.map(item => ({
         dishId: item.dishId,
         quantity: item.quantity

@@ -12,6 +12,7 @@
               <el-menu-item index="/">首页</el-menu-item>
               <el-menu-item index="/orders">我的订单</el-menu-item>
               <el-menu-item index="/points">我的积分</el-menu-item>
+              <el-menu-item index="/profile">个人资料</el-menu-item>
             </el-menu>
           </div>
 

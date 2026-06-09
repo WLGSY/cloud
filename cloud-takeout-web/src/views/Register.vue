@@ -10,27 +10,14 @@
         </el-form-item>
 
         <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" placeholder="请输入手机号">
-            <template #append>
-              <el-button
-                @click="sendSmsCode"
-                :disabled="smsCountdown > 0"
-              >
-                {{ smsCountdown > 0 ? `${smsCountdown}秒后重试` : '获取验证码' }}
-              </el-button>
-            </template>
-          </el-input>
-        </el-form-item>
-
-        <el-form-item label="验证码" prop="smsCode">
-          <el-input v-model="form.smsCode" placeholder="请输入短信验证码" />
+          <el-input v-model="form.phone" placeholder="请输入手机号" />
         </el-form-item>
 
         <el-form-item label="密码" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="请输入密码"
+            placeholder="请输入密码（至少6位）"
             show-password
           />
         </el-form-item>
@@ -68,12 +55,10 @@ import { userApi } from '@/api/user'
 const router = useRouter()
 const formRef = ref()
 const loading = ref(false)
-const smsCountdown = ref(0)
 
 const form = reactive({
   username: '',
   phone: '',
-  smsCode: '',
   password: '',
   confirmPassword: ''
 })
@@ -93,7 +78,6 @@ const rules = {
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
   ],
-  smsCode: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能小于6位', trigger: 'blur' }
@@ -102,31 +86,6 @@ const rules = {
     { required: true, message: '请确认密码', trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
-
-// 发送短信验证码（模拟）
-const sendSmsCode = async () => {
-  if (!form.phone) {
-    ElMessage.warning('请先输入手机号')
-    return
-  }
-  if (!/^1[3-9]\d{9}$/.test(form.phone)) {
-    ElMessage.warning('请输入正确的手机号')
-    return
-  }
-
-  // 模拟发送验证码
-  ElMessage.success('验证码已发送：123456（演示）')
-  form.smsCode = '123456'  // 演示用，自动填充
-
-  // 倒计时
-  smsCountdown.value = 60
-  const timer = setInterval(() => {
-    smsCountdown.value--
-    if (smsCountdown.value <= 0) {
-      clearInterval(timer)
-    }
-  }, 1000)
 }
 
 const handleRegister = async () => {

@@ -2,10 +2,16 @@ package com.hnkjzy.order.service.impl;
 
 import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hnkjzy.order.client.DishClient;
 import com.hnkjzy.order.client.UserClient;
+import com.hnkjzy.order.common.PageResult;
+import com.hnkjzy.order.dto.CreateOrderDTO;
 import com.hnkjzy.order.dto.DishDTO;
+import com.hnkjzy.order.dto.OrderVO;
 import com.hnkjzy.order.dto.UserDTO;
 import com.hnkjzy.order.entity.Order;
 import com.hnkjzy.order.mapper.OrderMapper;
@@ -19,9 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,6 +45,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     private final AtomicLong orderNoCounter = new AtomicLong(1);
     private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String generateOrderNo() {
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -47,79 +55,117 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     @Transactional
-    public Order createOrder(Long userId, Long dishId, Integer quantity) {
-        // 带超时控制的用户服务调用
+    public Order createOrder(CreateOrderDTO dto) {
+        Long userId = dto.getUserId();
+
+        // 1. 查询用户信息（带超时控制）
         UserDTO user = callUserWithTimeout(userId);
         if (user == null) {
             throw new RuntimeException("用户不存在，userId=" + userId);
         }
 
-        DishDTO dish = getDishByIdWithFallback(dishId);
-        if (dish == null) {
-            throw new RuntimeException("菜品不存在，dishId=" + dishId);
+        // 2. 遍历菜品，查询价格，构建 items JSON
+        List<Map<String, Object>> itemList = new ArrayList<>();
+        BigDecimal calculatedTotal = BigDecimal.ZERO;
+
+        for (CreateOrderDTO.OrderItemDTO item : dto.getItems()) {
+            DishDTO dish = getDishByIdWithFallback(item.getDishId());
+            if (dish == null) {
+                throw new RuntimeException("菜品不存在，dishId=" + item.getDishId());
+            }
+
+            BigDecimal itemTotal = dish.getPrice().multiply(new BigDecimal(item.getQuantity()));
+            calculatedTotal = calculatedTotal.add(itemTotal);
+
+            Map<String, Object> itemMap = new LinkedHashMap<>();
+            itemMap.put("dishId", dish.getId());
+            itemMap.put("name", dish.getName());
+            itemMap.put("price", dish.getPrice());
+            itemMap.put("quantity", item.getQuantity());
+            itemList.add(itemMap);
         }
 
-        BigDecimal totalAmount = dish.getPrice().multiply(new BigDecimal(quantity));
+        // 3. 前端传的 totalAmount 优先，否则用计算的
+        BigDecimal finalAmount = dto.getTotalAmount() != null && dto.getTotalAmount().compareTo(BigDecimal.ZERO) > 0
+                ? dto.getTotalAmount() : calculatedTotal;
 
-        // 创建订单
+        // 4. 序列化 items 为 JSON
+        String itemsJson;
+        try {
+            itemsJson = objectMapper.writeValueAsString(itemList);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("订单明细序列化失败", e);
+        }
+
+        // 5. 创建订单
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
         order.setUserId(userId);
+        order.setShopId(dto.getShopId());
         order.setUserName(user.getUsername());
-        order.setDishId(dishId);
-        order.setDishName(dish.getName());
-        order.setPrice(dish.getPrice());
-        order.setQuantity(quantity);
-        order.setTotalAmount(totalAmount);
+        order.setUserPhone(dto.getUserPhone() != null ? dto.getUserPhone() : user.getPhone());
+        order.setTotalAmount(finalAmount);
         order.setStatus(0);
+        order.setReceiver(dto.getReceiver());
+        order.setAddress(dto.getAddress());
+        order.setRemark(dto.getRemark());
+        order.setItems(itemsJson);
         order.setCreateTime(LocalDateTime.now());
 
         this.save(order);
 
-        // 发送订单创建消息
-        orderMessageSender.sendOrderCreated(order);
+        // 6. 发送订单创建消息
+        try {
+            orderMessageSender.sendOrderCreated(order);
+        } catch (Exception e) {
+            log.error("[订单服务] 订单创建消息发送失败", e);
+        }
 
         return order;
     }
 
-    /**
-     * 带3秒超时的用户服务调用（超时降级）
-     */
-    private UserDTO callUserWithTimeout(Long userId) {
-        System.out.println("[超时检测] 开始调用用户服务，userId=" + userId);
+    @Override
+    public PageResult<OrderVO> getOrdersByUserId(Long userId, Integer pageNum, Integer pageSize, Integer status) {
+        // 构建分页查询
+        Page<Order> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getUserId, userId);
 
-        Future<UserDTO> future = executor.submit(() -> {
-            System.out.println("[异步线程] 开始执行用户服务调用");
-            UserDTO result = getUserByIdWithFallback(userId);
-            System.out.println("[异步线程] 用户服务调用完成");
-            return result;
-        });
-
-        try {
-            System.out.println("[超时检测] 等待结果，超时阈值: 3000ms");
-            UserDTO user = future.get(3, TimeUnit.SECONDS);
-            System.out.println("[超时检测] 成功获取结果");
-            return user;
-        } catch (TimeoutException e) {
-            System.out.println("[超时降级] 用户服务响应超过3秒，主动熔断，使用默认用户，userId=" + userId);
-            future.cancel(true);
-
-            UserDTO defaultUser = new UserDTO();
-            defaultUser.setId(userId);
-            defaultUser.setUsername("默认用户(超时降级)");
-            defaultUser.setPhone("00000000000");
-            return defaultUser;
-        } catch (Exception e) {
-            System.err.println("[ERROR] 调用用户服务异常: " + e.getMessage());
-            UserDTO defaultUser = new UserDTO();
-            defaultUser.setId(userId);
-            defaultUser.setUsername("默认用户(调用异常)");
-            defaultUser.setPhone("00000000000");
-            return defaultUser;
+        if (status != null) {
+            wrapper.eq(Order::getStatus, status);
         }
+
+        wrapper.orderByDesc(Order::getCreateTime);
+
+        Page<Order> resultPage = this.page(page, wrapper);
+
+        // 转换为 OrderVO
+        List<OrderVO> voList = resultPage.getRecords().stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+
+        return new PageResult<>(voList, resultPage.getTotal());
     }
 
     @Override
+    public PageResult<OrderVO> getOrdersByShopId(Long shopId, Integer pageNum, Integer pageSize, Integer status) {
+        Page<Order> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getShopId, shopId);
+
+        if (status != null) {
+            wrapper.eq(Order::getStatus, status);
+        }
+        wrapper.orderByDesc(Order::getCreateTime);
+
+        Page<Order> resultPage = this.page(page, wrapper);
+        List<OrderVO> voList = resultPage.getRecords().stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+        return new PageResult<>(voList, resultPage.getTotal());
+    }
+
+    // 旧的 List 返回方法保留用于内部调用（无 @Override，不在接口中）
     public List<Order> getOrdersByUserId(Long userId) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getUserId, userId)
@@ -135,29 +181,26 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             log.warn("订单不存在，订单ID: {}", id);
             return false;
         }
-        
-        // 只允许取消待支付(0)或已支付(1)的订单
+
         if (order.getStatus() != 0 && order.getStatus() != 1) {
             log.warn("订单状态不允许取消，订单ID: {}, 当前状态: {}", id, order.getStatus());
             return false;
         }
-        
+
         order.setStatus(2);
         order.setCancelTime(LocalDateTime.now());
         order.setCancelReason(reason != null ? reason : "用户主动取消");
-        
+
         boolean success = this.updateById(order);
-        
+
         if (success) {
             try {
                 orderMessageSender.sendOrderCancelled(order);
-                log.info("[订单服务] 订单取消消息已发送，订单号: {}, 用户: {}, 原因: {}", 
-                        order.getOrderNo(), order.getUserName(), order.getCancelReason());
             } catch (Exception e) {
-                log.error("[订单服务] 订单状态已更新，但取消消息发送失败，订单ID: {}", id, e);
+                log.error("[订单服务] 订单取消消息发送失败，订单ID: {}", id, e);
             }
         }
-        
+
         return success;
     }
 
@@ -184,9 +227,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (updated) {
                 try {
                     orderMessageSender.sendOrderPaid(order);
-                    log.info("[订单服务] 订单支付成功，订单ID: {}", id);
                 } catch (Exception e) {
-                    log.error("[订单服务] 订单状态已更新，但消息发送失败，订单ID: {}", id, e);
+                    log.error("[订单服务] 支付消息发送失败，订单ID: {}", id, e);
                 }
             }
             return updated;
@@ -196,10 +238,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (updated) {
                 try {
                     orderMessageSender.sendOrderCancelled(order);
-                    log.info("[订单服务] 订单取消消息已发送，订单号: {}, 用户: {}", 
-                            order.getOrderNo(), order.getUserName());
                 } catch (Exception e) {
-                    log.error("[订单服务] 订单状态已更新，但消息发送失败，订单ID: {}", id, e);
+                    log.error("[订单服务] 取消消息发送失败，订单ID: {}", id, e);
                 }
             }
             return updated;
@@ -208,24 +248,90 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
     }
 
+    // ==================== Order → OrderVO 转换 ====================
+
+    private OrderVO convertToVO(Order order) {
+        OrderVO vo = new OrderVO();
+        vo.setId(order.getId());
+        vo.setOrderNo(order.getOrderNo());
+        vo.setUserId(order.getUserId());
+        vo.setShopId(order.getShopId());
+        vo.setUserName(order.getUserName());
+        vo.setUserPhone(order.getUserPhone());
+        vo.setTotalAmount(order.getTotalAmount());
+        vo.setStatus(order.getStatus());
+        vo.setStatusText(getStatusText(order.getStatus()));
+        vo.setReceiver(order.getReceiver());
+        vo.setAddress(order.getAddress());
+        vo.setRemark(order.getRemark());
+        vo.setCreateTime(order.getCreateTime());
+        vo.setPayTime(order.getPayTime());
+        vo.setCancelTime(order.getCancelTime());
+        vo.setCancelReason(order.getCancelReason());
+
+        // 解析 items JSON
+        List<OrderVO.OrderItemVO> itemVOs = OrderVO.parseItems(order.getItems());
+        vo.setItems(itemVOs);
+        vo.setTotalCount(itemVOs.stream().mapToInt(OrderVO.OrderItemVO::getQuantity).sum());
+
+        return vo;
+    }
+
+    @Override
+    @Transactional
+    public boolean completeOrder(Long id) {
+        Order order = this.getById(id);
+        if (order == null) {
+            log.warn("[订单服务] 订单不存在，订单ID: {}", id);
+            return false;
+        }
+        if (order.getStatus() != 1) {
+            log.warn("[订单服务] 只有已支付订单可以确认收货，订单ID: {}, 当前状态: {}", id, order.getStatus());
+            return false;
+        }
+        order.setStatus(3);  // 已完成
+        return this.updateById(order);
+    }
+
+    private String getStatusText(Integer status) {
+        switch (status) {
+            case 0: return "待支付";
+            case 1: return "已支付";
+            case 2: return "已取消";
+            case 3: return "已完成";
+            default: return "未知";
+        }
+    }
+
     // ==================== Sentinel 熔断降级 ====================
+
+    /**
+     * 带3秒超时的用户服务调用
+     * 超时或异常时抛出 RuntimeException，不创建有误订单
+     */
+    private UserDTO callUserWithTimeout(Long userId) {
+        Future<UserDTO> future = executor.submit(() -> getUserByIdWithFallback(userId));
+
+        try {
+            return future.get(3, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            log.error("[超时降级] 用户服务响应超过3秒，userId={}", userId);
+            future.cancel(true);
+            throw new RuntimeException("用户服务繁忙，请稍后重试");
+        } catch (Exception e) {
+            log.error("[ERROR] 调用用户服务异常: {}", e.getMessage());
+            throw new RuntimeException("用户服务不可用，请稍后重试");
+        }
+    }
 
     @SentinelResource(value = "getUserById", fallback = "fallbackGetUser")
     public UserDTO getUserByIdWithFallback(Long userId) {
         return userClient.getUserById(userId);
     }
 
-    /**
-     * Sentinel 熔断降级方法
-     */
     public UserDTO fallbackGetUser(Long userId, Throwable e) {
-        System.out.println("[Sentinel熔断降级] 用户服务不可用，触发熔断保护，使用默认用户，userId=" + userId + "，异常原因：" + e.getMessage());
-
-        UserDTO defaultUser = new UserDTO();
-        defaultUser.setId(userId);
-        defaultUser.setUsername("默认用户(熔断降级)");
-        defaultUser.setPhone("00000000000");
-        return defaultUser;
+        log.error("[Sentinel熔断降级] 用户服务不可用，userId={}", userId);
+        throw new RuntimeException("用户服务暂不可用，请稍后重试");
     }
 
     @SentinelResource(value = "getDishById", fallback = "fallbackGetDish")
@@ -234,14 +340,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     public DishDTO fallbackGetDish(Long dishId, Throwable e) {
-        System.out.println("[Sentinel熔断降级] 菜品服务不可用，触发熔断保护，使用默认菜品，dishId=" + dishId + "，异常原因：" + e.getMessage());
-
-        DishDTO defaultDish = new DishDTO();
-        defaultDish.setId(dishId);
-        defaultDish.setName("默认菜品(熔断降级)");
-        defaultDish.setPrice(new BigDecimal("9.9"));
-        defaultDish.setDescription("这是降级后的默认菜品");
-        defaultDish.setStatus(1);
-        return defaultDish;
+        log.error("[Sentinel熔断降级] 菜品服务不可用，dishId={}", dishId);
+        throw new RuntimeException("菜品服务暂不可用，请稍后重试");
     }
 }

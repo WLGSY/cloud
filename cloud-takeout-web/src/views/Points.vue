@@ -3,23 +3,35 @@
     <h2>⭐ 我的积分</h2>
 
     <!-- 积分卡片 -->
-    <el-card class="points-card">
-      <div class="points-info">
-        <div class="points-number">{{ pointsInfo.totalPoints || 0 }}</div>
-        <div class="points-label">当前总积分</div>
-        <div class="points-tip">消费1元 = {{ pointsInfo.rate || 10 }} 积分</div>
-      </div>
-    </el-card>
+    <el-row :gutter="20" class="points-overview">
+      <el-col :span="12">
+        <el-card class="points-card">
+          <div class="points-info">
+            <div class="points-number">{{ pointsInfo.totalPoints || 0 }}</div>
+            <div class="points-label">当前总积分</div>
+            <div class="points-tip">消费1元 = {{ pointsInfo.rate || 10 }} 积分</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card class="stats-card">
+          <div class="stats-info">
+            <div class="stats-number">{{ stats.totalEarned || 0 }}</div>
+            <div class="stats-label">累计获得积分</div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
 
     <!-- 积分规则 -->
     <div class="points-rule">
       <el-collapse>
-        <el-collapse-item title="积分规则说明" name="1">
+        <el-collapse-item title="📋 积分规则说明" name="1">
           <div class="rule-content">
-            <p>1. 每消费1元可获得10积分</p>
-            <p>2. 积分可用于兑换优惠券</p>
-            <p>3. 积分有效期：1年</p>
-            <p>4. 订单取消后积分将自动扣除</p>
+            <p>✅ 每消费<strong>1元</strong>可获得<strong>{{ pointsInfo.rate || 10 }}积分</strong></p>
+            <p>🔝 单笔订单最高可获得<strong>{{ pointsInfo.maxPerOrder || 1000 }}积分</strong></p>
+            <p>🔄 订单取消后积分将<strong>自动扣除</strong></p>
+            <p>💡 积分功能当前状态：<strong>{{ pointsInfo.enabled ? '已开启' : '已关闭' }}</strong></p>
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -62,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { pointsApi } from '@/api/points'
 
 const pointsInfo = ref({})
@@ -71,6 +83,14 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const loading = ref(false)
+
+// 统计数据
+const stats = computed(() => {
+  const earned = pointsLog.value
+    .filter(log => log.points > 0)
+    .reduce((sum, log) => sum + log.points, 0)
+  return { totalEarned: earned }
+})
 
 // 加载积分信息（对接后端）
 const loadPointsInfo = async () => {
@@ -119,8 +139,10 @@ onMounted(() => {
 .points h2 {
   margin-bottom: 20px;
 }
-.points-card {
+.points-overview {
   margin-bottom: 20px;
+}
+.points-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   text-align: center;
@@ -138,6 +160,20 @@ onMounted(() => {
 .points-tip {
   font-size: 12px;
   opacity: 0.7;
+}
+.stats-card {
+  text-align: center;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+.stats-number {
+  font-size: 36px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.stats-label {
+  font-size: 14px;
+  opacity: 0.9;
 }
 .points-rule {
   margin-bottom: 30px;

@@ -16,5 +16,14 @@ public class User {
     private String username;
     private String password;
     private String phone;
+
+    // 新增扩展字段
+    private String nickname;
+    private String email;
+    private String gender;
+    private String birthday;
+    private String avatar;
+    private String role;
+
     private LocalDateTime createTime;
 }

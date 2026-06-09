@@ -69,7 +69,7 @@ export const userApi = {
     if (USE_MOCK) {
       return await mockLogin(data.username, data.password)
     }
-    return request.post('/user/login', data)
+    return request.post('/api/user/login', data)
   },
 
   // 用户注册
@@ -77,39 +77,48 @@ export const userApi = {
     if (USE_MOCK) {
       return await mockRegister(data)
     }
-    return request.post('/user/register', data)
+    return request.post('/api/user/register', data)
   },
 
   // 获取用户信息
   getUserInfo() {
     if (USE_MOCK) {
       const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
-      return Promise.resolve({
-        code: 200,
-        data: userInfo,
-        message: '成功'
-      })
+      return Promise.resolve({ code: 200, data: userInfo, message: '成功' })
     }
-    return request.get('/user/info')
+    return request.get('/api/user/info')
   },
 
   // 更新用户信息
   updateUserInfo(data) {
     if (USE_MOCK) {
-      return Promise.resolve({
-        code: 200,
-        data: data,
-        message: '更新成功'
-      })
+      return Promise.resolve({ code: 200, data: data, message: '更新成功' })
     }
-    return request.put('/user/info', data)
+    return request.put('/api/user/info', data)
   },
 
-  // 修改密码（对接后端 /user/password 接口）
+  // 修改密码
   updatePassword(data) {
     if (USE_MOCK) {
       return mockUpdatePassword(data)
     }
-    return request.put('/user/password', data)
+    return request.put('/api/user/password', data)
+  },
+
+  // ===== 管理端 =====
+
+  // 获取用户列表（分页）
+  getUserList(params) {
+    return request.get('/api/user/list', { params })
+  },
+
+  // 更新用户角色
+  updateUserRole(id, role) {
+    return request.put(`/api/user/${id}/role`, { role })
+  },
+
+  // 获取统计数据
+  getStats() {
+    return request.get('/api/user/stats')
   }
 }
