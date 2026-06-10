@@ -1,0 +1,35 @@
+# ===== Maven 构建产物 =====
+**/target/*
+!**/target/*.jar
+
+# ===== IDE 配置 =====
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# ===== 前端 =====
+cloud-takeout-web/node_modules/
+cloud-takeout-web/dist/
+
+# ===== Git =====
+.git/
+.gitignore
+
+# ===== 临时文件 =====
+*.log
+*.tmp
+*.swp
+*.bak
+.DS_Store
+Thumbs.db
+
+# ===== Docker 相关 =====
+docker-compose.override.yml
+.env.local
+
+# ===== 文档 =====
+*.md
+!README.md
