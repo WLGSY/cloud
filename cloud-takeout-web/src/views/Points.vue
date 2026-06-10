@@ -1,74 +1,47 @@
 <template>
-  <div class="points">
-    <h2>⭐ 我的积分</h2>
+  <div class="points-page">
+    <h2 class="page-title">⭐ 我的积分</h2>
 
-    <!-- 积分卡片 -->
-    <el-row :gutter="20" class="points-overview">
+    <el-row :gutter="20" class="points-cards">
       <el-col :span="12">
-        <el-card class="points-card">
-          <div class="points-info">
-            <div class="points-number">{{ pointsInfo.totalPoints || 0 }}</div>
-            <div class="points-label">当前总积分</div>
-            <div class="points-tip">消费1元 = {{ pointsInfo.rate || 10 }} 积分</div>
-          </div>
-        </el-card>
+        <div class="stat-card primary">
+          <div class="stat-number">{{ pointsInfo.totalPoints || 0 }}</div>
+          <div class="stat-label">当前积分</div>
+          <div class="stat-desc">消费1元 ≈ {{ pointsInfo.rate || 10 }} 积分</div>
+        </div>
       </el-col>
       <el-col :span="12">
-        <el-card class="stats-card">
-          <div class="stats-info">
-            <div class="stats-number">{{ stats.totalEarned || 0 }}</div>
-            <div class="stats-label">累计获得积分</div>
-          </div>
-        </el-card>
+        <div class="stat-card accent">
+          <div class="stat-number">{{ stats.totalEarned || 0 }}</div>
+          <div class="stat-label">累计获得</div>
+          <div class="stat-desc">单笔上限 {{ pointsInfo.maxPerOrder || 1000 }}</div>
+        </div>
       </el-col>
     </el-row>
 
-    <!-- 积分规则 -->
-    <div class="points-rule">
-      <el-collapse>
-        <el-collapse-item title="📋 积分规则说明" name="1">
-          <div class="rule-content">
-            <p>✅ 每消费<strong>1元</strong>可获得<strong>{{ pointsInfo.rate || 10 }}积分</strong></p>
-            <p>🔝 单笔订单最高可获得<strong>{{ pointsInfo.maxPerOrder || 1000 }}积分</strong></p>
-            <p>🔄 订单取消后积分将<strong>自动扣除</strong></p>
-            <p>💡 积分功能当前状态：<strong>{{ pointsInfo.enabled ? '已开启' : '已关闭' }}</strong></p>
-          </div>
-        </el-collapse-item>
-      </el-collapse>
-    </div>
+    <h3 class="section-title">积分明细</h3>
+    <el-table :data="pointsLog" v-loading="loading" class="log-table">
+      <el-table-column prop="createTime" label="时间" width="170" />
+      <el-table-column prop="type" label="类型" width="120">
+        <template #default="{ row }">
+          <el-tag :type="row.points > 0 ? 'success' : 'danger'" size="small" effect="plain">
+            {{ row.type === 'ORDER_PAID' ? '下单获得' : row.type === 'ORDER_CANCELLED' ? '订单取消' : '其他' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="points" label="变动" width="100">
+        <template #default="{ row }">
+          <span :style="{ color: row.points > 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600 }">
+            {{ row.points > 0 ? '+' : '' }}{{ row.points }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="remark" label="说明" />
+    </el-table>
 
-    <!-- 积分明细（对接后端） -->
-    <div class="points-log">
-      <h3>积分明细</h3>
-      <el-table :data="pointsLog" style="width: 100%" v-loading="loading">
-        <el-table-column prop="createTime" label="时间" width="180" />
-        <el-table-column prop="type" label="类型" width="120">
-          <template #default="{ row }">
-            <el-tag :type="row.points > 0 ? 'success' : 'danger'" size="small">
-              {{ row.type === 'ORDER_PAID' ? '订单获得' : row.type === 'ORDER_CANCELLED' ? '订单取消' : '其他' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="points" label="积分变动" width="120">
-          <template #default="{ row }">
-            <span :style="{ color: row.points > 0 ? '#67c23a' : '#f56c6c' }">
-              {{ row.points > 0 ? '+' : '' }}{{ row.points }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="remark" label="说明" />
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination">
-        <el-pagination
-          v-model:current-page="pageNum"
-          v-model:page-size="pageSize"
-          :total="total"
-          layout="total, prev, pager, next"
-          @current-change="loadPointsLog"
-        />
-      </div>
+    <div class="pagination-bar">
+      <el-pagination v-model:current-page="pageNum" :page-size="pageSize"
+        :total="total" layout="total, prev, pager, next" @current-change="loadPointsLog" />
     </div>
   </div>
 </template>
@@ -84,110 +57,37 @@ const pageSize = ref(10)
 const total = ref(0)
 const loading = ref(false)
 
-// 统计数据
-const stats = computed(() => {
-  const earned = pointsLog.value
-    .filter(log => log.points > 0)
-    .reduce((sum, log) => sum + log.points, 0)
-  return { totalEarned: earned }
-})
+const stats = computed(() => ({
+  totalEarned: pointsLog.value.filter(l => l.points > 0).reduce((s, l) => s + l.points, 0)
+}))
 
-// 加载积分信息（对接后端）
 const loadPointsInfo = async () => {
-  try {
-    const res = await pointsApi.getMyPoints()
-    if (res.code === 200) {
-      pointsInfo.value = res.data
-    }
-  } catch (error) {
-    console.error('加载积分信息失败', error)
-  }
+  try { const res = await pointsApi.getMyPoints(); if (res.code === 200) pointsInfo.value = res.data } catch {}
 }
-
-// 加载积分明细（对接后端）
 const loadPointsLog = async () => {
   loading.value = true
   try {
-    const params = {
-      pageNum: pageNum.value,
-      pageSize: pageSize.value
-    }
-    const res = await pointsApi.getLog(params)
-    if (res.code === 200) {
-      pointsLog.value = res.data.list || []
-      total.value = res.data.total || 0
-    }
-  } catch (error) {
-    console.error('加载积分明细失败', error)
-  } finally {
-    loading.value = false
-  }
+    const res = await pointsApi.getLog({ pageNum: pageNum.value, pageSize: pageSize.value })
+    if (res.code === 200) { pointsLog.value = res.data.list || []; total.value = res.data.total || 0 }
+  } catch {} finally { loading.value = false }
 }
 
-onMounted(() => {
-  loadPointsInfo()
-  loadPointsLog()
-})
+onMounted(() => { loadPointsInfo(); loadPointsLog() })
 </script>
 
 <style scoped>
-.points {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 20px;
+.points-page { max-width: 800px; margin: 0 auto; }
+.page-title { font-size: 22px; font-weight: 700; color: var(--color-text); margin-bottom: var(--space-md); }
+.points-cards { margin-bottom: var(--space-lg); }
+.stat-card {
+  padding: var(--space-md); border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-light); text-align: center;
 }
-.points h2 {
-  margin-bottom: 20px;
-}
-.points-overview {
-  margin-bottom: 20px;
-}
-.points-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  text-align: center;
-}
-.points-number {
-  font-size: 48px;
-  font-weight: bold;
-  margin-bottom: 8px;
-}
-.points-label {
-  font-size: 16px;
-  opacity: 0.9;
-  margin-bottom: 8px;
-}
-.points-tip {
-  font-size: 12px;
-  opacity: 0.7;
-}
-.stats-card {
-  text-align: center;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-}
-.stats-number {
-  font-size: 36px;
-  font-weight: bold;
-  margin-bottom: 8px;
-}
-.stats-label {
-  font-size: 14px;
-  opacity: 0.9;
-}
-.points-rule {
-  margin-bottom: 30px;
-}
-.rule-content {
-  padding: 16px;
-  color: #666;
-  line-height: 1.8;
-}
-.points-log h3 {
-  margin-bottom: 16px;
-}
-.pagination {
-  margin-top: 20px;
-  text-align: center;
-}
+.stat-card.primary { background: var(--color-primary-bg); }
+.stat-card.accent { background: #fdf2f8; }
+.stat-number { font-size: 40px; font-weight: 700; color: var(--color-text); letter-spacing: -0.02em; }
+.stat-label { font-size: 15px; color: var(--color-text); margin: 4px 0; font-weight: 500; }
+.stat-desc { font-size: 12px; color: var(--color-text-secondary); }
+.section-title { font-size: 17px; font-weight: 600; color: var(--color-text); margin-bottom: var(--space-sm); }
+.pagination-bar { margin-top: var(--space-md); text-align: center; }
 </style>

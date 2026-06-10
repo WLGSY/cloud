@@ -7,15 +7,5 @@
 </script>
 
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
-  'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
-  background-color: #f5f5f5;
-}
+/* 全局基础样式已迁移至 src/styles/theme.css */
 </style>

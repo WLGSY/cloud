@@ -1,140 +1,217 @@
 <template>
   <div class="user-layout">
-    <el-container>
-      <el-header>
-        <div class="header-content">
-          <div class="logo" @click="goHome">
-            🍔 云外卖
-          </div>
-
-          <div class="header-nav">
-            <el-menu mode="horizontal" router :default-active="$route.path">
-              <el-menu-item index="/">首页</el-menu-item>
-              <el-menu-item index="/orders">我的订单</el-menu-item>
-              <el-menu-item index="/points">我的积分</el-menu-item>
-              <el-menu-item index="/profile">个人资料</el-menu-item>
-            </el-menu>
-          </div>
-
-          <div class="header-actions">
-            <el-badge :value="cartStore.totalCount" :hidden="cartStore.totalCount === 0">
-              <el-button circle @click="goCart">
-                <el-icon><ShoppingCart /></el-icon>
-              </el-button>
-            </el-badge>
-
-            <el-dropdown @command="handleCommand">
-              <span class="user-info">
-                <el-avatar :size="32" :src="userStore.userInfo?.avatar || defaultAvatar" />
-                <span>{{ userStore.userInfo?.nickname || userStore.userInfo?.username || '未登录' }}</span>
-                <el-icon><ArrowDown /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="profile">个人资料</el-dropdown-item>
-                  <el-dropdown-item command="orders">我的订单</el-dropdown-item>
-                  <el-dropdown-item command="points">我的积分</el-dropdown-item>
-                  <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
+    <!-- 顶部导航 — 毛玻璃效果 -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <router-link to="/" class="logo">🍃 云外卖</router-link>
+        <nav class="nav-links">
+          <router-link to="/" class="nav-item" :class="{ active: $route.path === '/' }">首页</router-link>
+          <router-link to="/orders" class="nav-item" :class="{ active: $route.path === '/orders' }">订单</router-link>
+          <router-link to="/points" class="nav-item" :class="{ active: $route.path === '/points' }">积分</router-link>
+        </nav>
+        <div class="user-area">
+          <router-link to="/cart" class="cart-btn">
+            🛒
+            <span v-if="cartStore.totalCount > 0" class="cart-badge">{{ cartStore.totalCount }}</span>
+          </router-link>
+          <template v-if="userStore.isLoggedIn()">
+            <router-link to="/profile" class="user-link">
+              <span class="avatar-dot">{{ (userStore.userInfo?.username || 'U')[0].toUpperCase() }}</span>
+              <span class="username">{{ userStore.userInfo?.username }}</span>
+            </router-link>
+            <button class="btn-text" @click="handleLogout">退出</button>
+          </template>
+          <template v-else>
+            <router-link to="/login" class="btn-primary-sm">登录</router-link>
+          </template>
         </div>
-      </el-header>
+      </div>
+    </header>
 
-      <el-main>
-        <router-view />
-      </el-main>
-
-      <el-footer>
-        <div class="footer-content">
-          <p>&copy; 2026 云外卖平台 | 美食送到家</p>
-        </div>
-      </el-footer>
-    </el-container>
+    <!-- 内容区 -->
+    <main class="main-content">
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script setup>
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ShoppingCart, ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
 const userStore = useUserStore()
 const cartStore = useCartStore()
-const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
-const goHome = () => router.push('/')
-const goCart = () => router.push('/cart')
-
-const handleCommand = (command) => {
-  if (command === 'logout') {
-    userStore.logout()
-    ElMessage.success('已退出登录')
-    router.push('/login')
-  } else if (command === 'profile') {
-    router.push('/profile')
-  } else if (command === 'orders') {
-    router.push('/orders')
-  } else if (command === 'points') {
-    router.push('/points')
-  }
+const handleLogout = () => {
+  userStore.logout()
+  ElMessage.success('已退出登录')
+  router.push('/login')
 }
 </script>
 
 <style scoped>
 .user-layout {
   min-height: 100vh;
+  background: var(--color-bg);
 }
-.el-header {
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  padding: 0 20px;
+
+/* 顶部导航 — 毛玻璃 */
+.topbar {
   position: sticky;
   top: 0;
   z-index: 100;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--color-border-light);
 }
-.header-content {
+.topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+  height: 56px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 60px;
+  gap: var(--space-md);
 }
 .logo {
-  font-size: 24px;
-  font-weight: bold;
-  cursor: pointer;
-  color: #ff6b35;
-  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
 }
-.header-nav {
-  flex: 1;
-  margin-left: 40px;
+.nav-links {
+  display: flex;
+  gap: 4px;
 }
-.header-actions {
+.nav-item {
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition);
+}
+.nav-item:hover,
+.nav-item.active {
+  color: var(--color-primary);
+  background: var(--color-primary-bg);
+}
+.user-area {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-sm);
 }
-.user-info {
+.cart-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+.cart-btn:hover {
+  background: var(--color-bg-alt);
+}
+.cart-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+.user-link {
   display: flex;
   align-items: center;
   gap: 8px;
+  text-decoration: none;
+  color: var(--color-text);
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  transition: all var(--transition);
+}
+.user-link:hover {
+  background: var(--color-bg-alt);
+}
+.avatar-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+.username {
+  font-weight: 500;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-text {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
   cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 24px;
-  transition: background 0.3s;
+  transition: all var(--transition);
 }
-.user-info:hover {
-  background: #f5f5f5;
+.btn-text:hover {
+  color: var(--color-danger);
+  background: #fef2f2;
 }
-.el-footer {
-  text-align: center;
-  background: #f5f5f5;
-  color: #999;
-  padding: 20px;
+.btn-primary-sm {
+  padding: 8px 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition);
+}
+.btn-primary-sm:hover {
+  background: var(--color-primary-light);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 内容区 */
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-md);
+  min-height: calc(100vh - 56px);
+}
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .username { display: none; }
 }
 </style>
