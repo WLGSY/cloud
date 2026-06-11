@@ -55,16 +55,17 @@ const handleLogin = async () => {
   try { await formRef.value.validate() } catch { return }
   loading.value = true
   try {
-    const res = await userApi.login(form)
+    const res = await userApi.login({ ...form, userType: 'merchant' })
     if (res.code === 200) {
       const role = res.data?.role || 'user'
+      const userType = res.data?.userType || 'merchant'
       if (role !== 'merchant' && role !== 'admin') {
         ElMessage.error('该账号不是商家账号，请使用商家账号登录')
         loading.value = false; return
       }
       userStore.setUser({
         token: res.data.token,
-        userInfo: { id: res.data.userId, username: res.data.username || form.username, role }
+        userInfo: { id: res.data.userId, username: res.data.username || form.username, role, userType }
       })
       ElMessage.success('登录成功！')
       router.push('/merchant')
@@ -76,29 +77,30 @@ const handleLogin = async () => {
 <style scoped>
 .login-page {
   display: flex; justify-content: center; align-items: center;
-  min-height: 100vh; background: var(--color-bg);
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fef9ef 0%, #fff7ed 30%, #fef2f2 60%, #faf5ff 100%);
 }
 .login-card {
   width: 400px; padding: var(--space-xl);
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-border-light);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
+  animation: scaleIn .4s var(--transition);
 }
 .card-header { text-align: center; margin-bottom: var(--space-lg); }
-.logo-icon { font-size: 40px; margin-bottom: var(--space-sm); }
-.card-header h1 {
-  font-size: 24px; font-weight: 700; color: var(--color-text);
-  letter-spacing: -0.03em; margin-bottom: 4px;
+.logo-icon {
+  font-size: 48px; margin-bottom: var(--space-sm);
+  display: inline-block; animation: fadeInUp .6s var(--transition);
 }
+.card-header h1 { font-size: 26px; font-weight: 800; color: var(--color-text); letter-spacing: -.03em; margin-bottom: 4px; }
 .card-header p { font-size: 14px; color: var(--color-text-secondary); }
-.submit-btn { width: 100%; margin-top: var(--space-xs); }
-.card-footer {
-  margin-top: var(--space-md); text-align: center;
-  display: flex; flex-direction: column; gap: var(--space-sm);
-}
-.card-footer a { color: var(--color-primary); text-decoration: none; font-size: 14px; }
+.submit-btn { width: 100%; margin-top: var(--space-sm); height: 44px; font-size: 15px; }
+.card-footer { margin-top: var(--space-md); text-align: center; display: flex; flex-direction: column; gap: var(--space-sm); }
+.card-footer a { color: var(--color-primary); text-decoration: none; font-size: 14px; font-weight: 500; }
+.card-footer a:hover { color: var(--color-primary-dark); }
 .role-links { display: flex; justify-content: center; gap: var(--space-sm); }
 .role-links a { color: var(--color-text-secondary); font-size: 13px; }
+.role-links a:hover { color: var(--color-primary); }
 .role-links span { color: var(--color-border); }
 </style>

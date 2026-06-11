@@ -51,11 +51,13 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         Long userId = jwtUtil.getUserIdFromToken(token);
         String username = jwtUtil.getUsernameFromToken(token);
         String role = jwtUtil.getRoleFromToken(token);
+        String userType = jwtUtil.getUserTypeFromToken(token);
 
         ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                 .header("X-User-Id", String.valueOf(userId))
                 .header("X-Username", username)
                 .header("X-User-Role", role != null ? role : "user")
+                .header("X-User-Type", userType != null ? userType : "customer")
                 .build();
 
         ServerWebExchange mutatedExchange = exchange.mutate()

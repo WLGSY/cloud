@@ -9,9 +9,13 @@ export const useUserStore = defineStore('user', () => {
   // 方法
   const setUser = (data) => {
     token.value = data.token
-    userInfo.value = data.userInfo
+    // 合并 userType 到 userInfo
+    userInfo.value = {
+      ...data.userInfo,
+      userType: data.userInfo?.userType || data.userType || 'customer'
+    }
     localStorage.setItem('token', data.token)
-    localStorage.setItem('userInfo', JSON.stringify(data.userInfo))
+    localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
   }
 
   const logout = () => {

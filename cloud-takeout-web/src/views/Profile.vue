@@ -6,9 +6,12 @@
       <el-col :span="8">
         <div class="profile-sidebar">
           <div class="avatar-card">
-            <el-avatar :size="100" :src="userInfo.avatar || defaultAvatar">
-              {{ (userInfo.nickname || userInfo.username || 'U')[0]?.toUpperCase() }}
-            </el-avatar>
+            <div class="avatar-wrapper" @click="showAvatarPicker = true">
+              <el-avatar :size="100" :src="avatarSrc" :style="{ background: avatarBg, fontSize: '44px' }">
+                {{ avatarFallback }}
+              </el-avatar>
+              <div class="avatar-overlay">📷</div>
+            </div>
             <h3>{{ userInfo.nickname || userInfo.username }}</h3>
             <el-tag :type="roleTagType" size="small" effect="plain">{{ roleText }}</el-tag>
             <p class="join-date" v-if="userInfo.createTime">注册于 {{ formatDate(userInfo.createTime) }}</p>
@@ -92,6 +95,27 @@
     <div class="logout-bar">
       <el-button @click="handleLogout" text type="danger">退出登录</el-button>
     </div>
+
+    <!-- 头像选择弹窗 -->
+    <el-dialog v-model="showAvatarPicker" title="选择头像" width="440px">
+      <el-tabs v-model="avatarTab">
+        <el-tab-pane label="预设头像" name="preset">
+          <div class="preset-avatars">
+            <div v-for="(av, i) in presetAvatars" :key="i" class="preset-item"
+              :class="{ selected: selectedPreset === av }" @click="selectedPreset = av">
+              <span class="preset-emoji">{{ av }}</span>
+            </div>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="图片链接" name="url">
+          <el-input v-model="customAvatarUrl" placeholder="输入头像图片URL..." />
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="showAvatarPicker = false">取消</el-button>
+        <el-button type="primary" @click="confirmAvatar" :loading="avatarUpdating">确认</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -109,9 +133,53 @@ const saving = ref(false)
 const passwordDialogVisible = ref(false)
 const passwordFormRef = ref()
 const passwordLoading = ref(false)
-const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+
+// 头像相关
+const showAvatarPicker = ref(false)
+const avatarTab = ref('preset')
+const avatarUpdating = ref(false)
+const customAvatarUrl = ref('')
+const selectedPreset = ref(null)
+const presetAvatars = ['🐱', '🐶', '🐼', '🐨', '🦊', '🐰', '🐸', '🐵', '🦁', '🐯', '🐮', '🐷', '🐭', '🐹', '🐔', '🐧', '🐦', '🦄', '🐙', '🦀', '🌞', '⭐', '🌈', '🎈', '🎯', '🍕', '🍔', '🌮', '🍣', '🎸', '🚀', '💎']
+
+// emoji预设映射到颜色
+const emojiColors = ['#fef3c7','#dbeafe','#d1fae5','#fce7f3','#e0e7ff','#fef2f2','#f0fdf4','#faf5ff','#fff7ed','#ecfeff']
+
+const confirmAvatar = async () => {
+  avatarUpdating.value = true
+  try {
+    let url
+    if (avatarTab.value === 'preset' && selectedPreset.value) {
+      // 存简单标识字符串，由 el-avatar 渲染 emoji
+      url = selectedPreset.value
+    } else if (avatarTab.value === 'url' && customAvatarUrl.value) {
+      url = customAvatarUrl.value
+    }
+    if (!url) { ElMessage.warning('请选择或输入头像'); avatarUpdating.value = false; return }
+    const uid = userInfo.value?.id || JSON.parse(localStorage.getItem('userInfo') || '{}').id
+    if (!uid) { ElMessage.error('登录信息丢失，请重新登录'); avatarUpdating.value = false; return }
+    const res = await userApi.uploadAvatar(url, uid)
+    if (res.code === 200) {
+      ElMessage.success('头像更新成功')
+      userStore.setUser({ token: userStore.token, userInfo: { ...userStore.userInfo, avatar: url } })
+      showAvatarPicker.value = false
+    } else { ElMessage.error(res.message || '更新失败') }
+  } catch (e) { ElMessage.error('更新失败: ' + (e.message || '网络错误')) } finally { avatarUpdating.value = false }
+}
 
 const userInfo = computed(() => userStore.userInfo)
+// 头像处理：如果是emoji则用背景色显示，如果是URL则直接显示
+const isEmoji = (s) => s && /^\p{Emoji}/u.test(s) && s.length <= 4
+const avatarSrc = computed(() => isEmoji(userInfo.value?.avatar) ? '' : (userInfo.value?.avatar || ''))
+const avatarFallback = computed(() => {
+  const av = userInfo.value?.avatar
+  if (isEmoji(av)) return av
+  return (userInfo.value?.nickname || userInfo.value?.username || 'U')[0]?.toUpperCase()
+})
+const avatarBg = computed(() => {
+  if (isEmoji(userInfo.value?.avatar)) return emojiColors[0]
+  return undefined
+})
 const roleText = computed(() => ({ user: '普通用户', merchant: '商家', admin: '管理员', rider: '骑手' })[userInfo.value?.role] || '普通用户')
 const roleTagType = computed(() => ({ user: 'info', merchant: 'warning', admin: 'danger', rider: 'success' })[userInfo.value?.role] || 'info')
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : ''
@@ -170,28 +238,52 @@ onMounted(async () => { await fetchUserInfo(); loadUserInfo() })
 </script>
 
 <style scoped>
-.profile-page { max-width: 960px; margin: 0 auto; }
-.page-title { font-size: 22px; font-weight: 700; color: var(--color-text); margin-bottom: var(--space-md); }
+.profile-page { max-width: 960px; margin: 0 auto; animation: fadeInUp .4s var(--transition); }
+.page-title { font-size: 24px; font-weight: 800; color: var(--color-text); margin-bottom: var(--space-md); letter-spacing: -.02em; }
 .profile-sidebar { display: flex; flex-direction: column; gap: var(--space-md); }
 .avatar-card {
-  text-align: center; padding: var(--space-lg);
-  background: var(--color-surface); border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border-light);
+  text-align: center; padding: var(--space-xl) var(--space-lg);
+  background: linear-gradient(135deg, var(--color-primary-bg), #f8f7ff);
+  border-radius: var(--radius-lg); border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
 }
-.avatar-card h3 { margin: var(--space-sm) 0 6px; font-size: 18px; color: var(--color-text); }
+.avatar-card h3 { margin: var(--space-sm) 0 4px; font-size: 18px; font-weight: 700; color: var(--color-text); }
 .join-date { font-size: 12px; color: var(--color-text-placeholder); margin-top: var(--space-sm); }
-.quick-actions { display: flex; flex-direction: column; gap: 6px; }
+.quick-actions { display: flex; flex-direction: column; gap: 8px; }
 .action-btn {
-  width: 100%; padding: 12px; border-radius: var(--radius-sm);
+  width: 100%; padding: 14px 16px; border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-light); background: var(--color-surface);
-  font-size: 14px; cursor: pointer; text-align: left; transition: all var(--transition);
+  font-size: 14px; font-weight: 500; cursor: pointer; text-align: left;
+  transition: all var(--transition); color: var(--color-text);
 }
-.action-btn:hover { border-color: var(--color-primary); background: var(--color-primary-bg); }
+.action-btn:hover {
+  border-color: var(--color-primary); background: var(--color-primary-bg);
+  color: var(--color-primary); transform: translateX(4px);
+}
 .info-card {
   background: var(--color-surface); border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border-light); padding: var(--space-md);
+  border: 1px solid var(--color-border-light); padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
 }
-.card-title { font-size: 17px; font-weight: 600; color: var(--color-text); margin-bottom: var(--space-md); }
+.card-title { font-size: 18px; font-weight: 700; color: var(--color-text); margin-bottom: var(--space-md); }
 .form-actions { display: flex; gap: var(--space-sm); padding-top: var(--space-sm); }
-.logout-bar { text-align: center; margin-top: var(--space-md); }
+.logout-bar { text-align: center; margin-top: var(--space-lg); padding: var(--space-md) 0; }
+.avatar-wrapper { position: relative; display: inline-block; cursor: pointer; border-radius: 50%; }
+.avatar-wrapper:hover .avatar-overlay {
+  opacity: 1;
+}
+.avatar-overlay {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: #fff; opacity: 0; transition: opacity .25s;
+}
+.preset-avatars { display: flex; flex-wrap: wrap; gap: 8px; }
+.preset-item {
+  width: 56px; height: 56px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: var(--color-bg); border: 2px solid transparent;
+  transition: all .2s; font-size: 28px;
+}
+.preset-item:hover { border-color: var(--color-primary); background: var(--color-primary-bg); }
+.preset-item.selected { border-color: var(--color-primary); background: var(--color-primary-bg); }
 </style>

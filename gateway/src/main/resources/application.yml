@@ -68,6 +68,15 @@ spring:
             - StripPrefix=1
             - AddResponseHeader=X-Service, points-service
 
+        # 配送服务路由
+        - id: delivery-service
+          uri: lb://delivery-service
+          predicates:
+            - Path=/api/delivery/**
+          filters:
+            - StripPrefix=1
+            - AddResponseHeader=X-Service, delivery-service
+
     # Sentinel配置
     sentinel:
       transport:
@@ -95,6 +104,7 @@ whitelist:
     - /api/user/login
     - /api/user/register
     - /api/shop/register
+    - /api/shop/all
     - /api/dish/list
     - /api/dish/search
     - /api/dish/test/host

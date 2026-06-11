@@ -19,6 +19,9 @@ public class OrderVO {
     private BigDecimal totalAmount;
     private Integer status;
     private String statusText;    // 状态文本
+    private Long riderId;         // 骑手ID
+    private Integer deliveryStatus;      // 配送状态
+    private String deliveryStatusText;   // 配送状态文本
     private String receiver;
     private String address;
     private String remark;

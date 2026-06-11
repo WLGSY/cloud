@@ -18,6 +18,7 @@ public interface DishService extends IService<Dish> {
     boolean batchPublish(List<Long> ids);    // 批量发布
     boolean batchRecall(List<Long> ids);     // 批量撤回
     boolean batchDelete(List<Long> ids);     // 批量删除
+    boolean addSales(Long id, Integer count); // 销量递增
 
     // ===== 查询功能 =====
     List<Dish> searchByName(String keyword);      // 模糊查询

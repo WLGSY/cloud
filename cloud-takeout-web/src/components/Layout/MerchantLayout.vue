@@ -3,7 +3,10 @@
     <el-container>
       <!-- 侧边栏 -->
       <el-aside width="230px" class="sidebar">
-        <div class="logo" @click="$router.push('/merchant')">🍃 商家中心</div>
+        <div class="logo" @click="$router.push('/merchant')">
+          <span class="logo-mark">🏪</span>
+          <span class="logo-text">商家中心</span>
+        </div>
         <el-menu :default-active="$route.path" router>
           <el-menu-item index="/merchant">
             <el-icon><DataAnalysis /></el-icon><span>数据看板</span>
@@ -23,7 +26,12 @@
       <el-container>
         <!-- 顶栏 -->
         <el-header class="topbar">
-          <span class="greeting">👋 欢迎，{{ userStore.userInfo?.username || '商家' }}</span>
+          <span class="greeting">
+            <img v-if="isImg(userStore.userInfo?.avatar)" :src="userStore.userInfo.avatar" class="top-avatar" />
+            <span v-else-if="userStore.userInfo?.avatar" class="top-avatar-emoji">{{ userStore.userInfo.avatar }}</span>
+            <span v-else class="top-avatar-dot">{{ (userStore.userInfo?.username||'M')[0].toUpperCase() }}</span>
+            👋 欢迎，{{ userStore.userInfo?.nickname || userStore.userInfo?.username || '商家' }}
+          </span>
           <div class="topbar-actions">
             <button class="btn-text" @click="$router.push('/')">预览用户端</button>
             <button class="btn-text danger" @click="handleLogout">退出登录</button>
@@ -44,6 +52,7 @@ import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
+const isImg = (url) => url && (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
 
 const handleLogout = () => {
   userStore.logout()
@@ -65,15 +74,17 @@ const handleLogout = () => {
   min-height: 100vh;
 }
 .logo {
-  height: 56px;
-  line-height: 56px;
-  text-align: center;
-  color: var(--color-text);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  cursor: pointer;
+  height: 56px; line-height: 56px; text-align: center;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  color: var(--color-text); font-size: 18px; font-weight: 700;
+  letter-spacing: -.02em; cursor: pointer;
   border-bottom: 1px solid var(--color-border-light);
+}
+.logo-mark { font-size: 22px; }
+.logo-text {
+  background: linear-gradient(135deg, #d4a843, var(--color-warning));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* 菜单 */
@@ -115,7 +126,11 @@ const handleLogout = () => {
   color: var(--color-text);
   font-weight: 500;
   font-size: 15px;
+  display: flex; align-items: center; gap: 8px;
 }
+.top-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.top-avatar-emoji { width: 32px; height: 32px; border-radius: 50%; background: var(--color-bg-alt); display: inline-flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.top-avatar-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--color-primary-bg); color: var(--color-primary); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
 .topbar-actions {
   display: flex;
   gap: 8px;

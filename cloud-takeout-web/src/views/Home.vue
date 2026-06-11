@@ -1,201 +1,229 @@
 <template>
   <div class="home">
-    <!-- 搜索栏 -->
-    <div class="search-bar">
-      <el-input v-model="keyword" placeholder="搜索菜品..." :prefix-icon="Search"
-        size="large" clearable @clear="loadDishes" @keyup.enter="searchDish"
-        class="search-input" />
+    <!-- Hero 区域 -->
+    <div class="hero-section">
+      <div class="hero-content">
+        <h1 class="hero-title">
+          <span class="hero-icon">🍃</span>
+          美味，即刻送达
+        </h1>
+        <p class="hero-sub">精选周边优质商家，你想吃的都在这里</p>
+      </div>
+      <div class="search-box" @click="showSearch = true">
+        <span class="search-icon">🔍</span>
+        <span class="search-text">搜索商家或菜品...</span>
+      </div>
     </div>
 
-    <!-- 分类导航 -->
-    <div class="category-nav">
-      <div
-        v-for="cat in categories" :key="cat.value"
-        class="category-item"
-        :class="{ active: activeCategory === cat.value }"
-        @click="changeCategory(cat.value)"
-      >{{ cat.label }}</div>
-    </div>
+    <!-- 商家列表 -->
+    <div class="shop-list">
+      <div class="list-header">
+        <span class="list-title">
+          <span class="title-dot"></span>
+          附近商家
+        </span>
+        <span class="list-count">{{ shops.length }} 家</span>
+      </div>
 
-    <!-- 菜品列表 -->
-    <div class="dish-section">
-      <div v-if="loading" class="loading-container"><el-skeleton :rows="3" animated /></div>
-      <div v-else-if="dishList.length === 0" class="empty-container"><el-empty description="暂无菜品" /></div>
-      <div v-else class="dish-grid">
-        <div v-for="dish in dishList" :key="dish.id" class="dish-card">
-          <div class="dish-image">
-            <img :src="dish.image || defaultImage" :alt="dish.name">
-            <div class="dish-tag" v-if="dish.isHot">热销</div>
+      <div v-if="loading" class="loading">
+        <el-skeleton :rows="3" animated />
+      </div>
+
+      <div v-else class="shop-grid">
+        <div
+          v-for="shop in shops" :key="shop.id"
+          class="shop-card"
+          @click="goShop(shop.id)"
+        >
+          <!-- 商家头像 -->
+          <div class="shop-avatar" :style="{ background: avatarColor(shop.id) }">
+            <img v-if="shop.logo" :src="shop.logo" :alt="shop.name" class="shop-logo-img" />
+            <span v-else class="shop-logo-text">{{ shop.name.charAt(0) }}</span>
           </div>
-          <div class="dish-info">
-            <h3 class="dish-name">{{ dish.name }}</h3>
-            <p class="dish-desc">{{ dish.description || '暂无描述' }}</p>
-            <div class="dish-footer">
-              <span class="dish-price">¥{{ dish.price }}</span>
-              <span class="dish-sales">月销 {{ dish.sales || 0 }}</span>
+
+          <!-- 商家信息 -->
+          <div class="shop-body">
+            <div class="shop-name-row">
+              <span class="shop-name">{{ shop.name }}</span>
+              <span class="shop-rating">⭐ {{ getRating(shop.id) }}</span>
             </div>
+            <div class="shop-meta">
+              <span>月售 {{ getSales(shop.id) }}</span>
+              <span class="dot">·</span>
+              <span>{{ getDeliveryTime(shop.id) }}</span>
+              <span class="dot">·</span>
+              <span>¥{{ getAvgPrice(shop.id) }} 人均</span>
+            </div>
+            <div class="shop-tags">
+              <span class="tag">{{ getTag(shop.id) }}</span>
+              <span class="tag discount" v-if="shop.id % 3 === 0">满减优惠</span>
+              <span class="tag new" v-if="shop.id > 4">新店</span>
+            </div>
+            <div class="shop-desc">{{ shop.description }}</div>
           </div>
-          <button class="dish-add-btn" @click="addToCart(dish)">+</button>
         </div>
       </div>
-
-      <div class="pagination-info" v-if="dishList.length > 0">
-        <span>已展示 {{ dishList.length }} / {{ total }} 个菜品</span>
-      </div>
-      <div class="load-more" v-if="checkHasMore">
-        <el-button text @click="loadMore" :loading="loadingMore">加载更多</el-button>
-      </div>
-    </div>
-
-    <!-- 购物车浮动按钮 -->
-    <div class="cart-float" @click="goCart" v-if="cartStore.totalCount > 0">
-      🛒 <span class="cart-float-badge">{{ cartStore.totalCount }}</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { shopApi } from '@/api/shop'
 import { dishApi } from '@/api/dish'
-import { useCartStore } from '@/stores/cart'
 
 const router = useRouter()
-const cartStore = useCartStore()
+const shops = ref([])
+const shopStats = ref({})
+const loading = ref(true)
 
-const keyword = ref('')
-const activeCategory = ref(null)
-const dishList = ref([])
-const pageNum = ref(1)
-const pageSize = ref(8)
-const total = ref(0)
-const loading = ref(false)
-const loadingMore = ref(false)
-const defaultImage = 'https://picsum.photos/200/150?random=1'
-
-const categories = [
-  { label: '全部', value: null },
-  { label: '热销推荐', value: 1 },
-  { label: '主食', value: 2 },
-  { label: '小炒', value: 3 },
-  { label: '汤类', value: 4 }
-]
-
-const checkHasMore = computed(() => total.value > 0 && dishList.value.length < total.value)
-
-const loadDishes = async () => {
-  loading.value = true
+// 加载所有商家
+onMounted(async () => {
   try {
-    const params = { pageNum: pageNum.value, pageSize: pageSize.value }
-    if (keyword.value?.trim()) params.keyword = keyword.value.trim()
-    if (activeCategory.value !== null) params.categoryId = activeCategory.value
-    const res = await dishApi.getList(params)
-    if (res.code === 200) {
-      if (pageNum.value === 1) dishList.value = res.data.list || []
-      else dishList.value = [...dishList.value, ...(res.data.list || [])]
-      total.value = res.data.total || 0
+    // 1. 加载商家列表
+    const shopRes = await shopApi.getAll()
+    if (shopRes.code === 200) {
+      shops.value = shopRes.data || []
     }
-  } catch (error) { console.error('加载菜品失败', error) } finally { loading.value = false }
+
+    // 2. 加载所有带 shopId 的菜品，计算每个店的统计
+    const dishRes = await dishApi.getList({ pageNum: 1, pageSize: 200 })
+    if (dishRes.code === 200) {
+      const dishes = dishRes.data.list || []
+      const stats = {}
+      dishes.forEach(d => {
+        if (!d.shopId) return
+        if (!stats[d.shopId]) {
+          stats[d.shopId] = { count: 0, sales: 0, totalPrice: 0 }
+        }
+        stats[d.shopId].count++
+        stats[d.shopId].sales += (d.sales || 0)
+        stats[d.shopId].totalPrice += parseFloat(d.price || 0)
+      })
+      shopStats.value = stats
+    }
+  } catch (e) {
+    console.error('加载失败', e)
+  } finally {
+    loading.value = false
+  }
+})
+
+// 辅助函数
+const avatarColor = (id) => {
+  const colors = ['#FF6B35', '#E84A5F', '#3B82F6', '#10B981', '#8B5CF6', '#F59E0B']
+  return colors[(id - 1) % colors.length]
 }
 
-const loadMore = () => { if (checkHasMore.value && !loadingMore.value) { pageNum.value++; loadDishes() } }
-const searchDish = () => { pageNum.value = 1; loadDishes() }
-const changeCategory = (cat) => { activeCategory.value = cat; pageNum.value = 1; loadDishes() }
-const addToCart = (dish) => { cartStore.addItem(dish); ElMessage.success(`已添加 ${dish.name}`) }
-const goCart = () => router.push('/cart')
+const getRating = (id) => (4.3 + (id * 0.13) % 0.7).toFixed(1)
+const getSales = (id) => (shopStats.value[id]?.sales || 500 + id * 100)
+const getDeliveryTime = (id) => (25 + id * 3) + 'min'
+const getAvgPrice = (id) => {
+  const s = shopStats.value[id]
+  if (!s || s.count === 0) return '—'
+  return Math.round(s.totalPrice / s.count)
+}
+const getTag = (id) => {
+  const tags = { 1: '湘菜', 2: '湘菜', 4: '粤菜', 5: '川菜', 6: '东北菜', 7: '日料' }
+  return tags[id] || '美食'
+}
 
-onMounted(() => loadDishes())
+const goShop = (id) => router.push(`/shop/${id}`)
 </script>
 
 <style scoped>
-.home { padding-bottom: var(--space-xl); }
+.home { max-width: 960px; margin: 0 auto; padding-bottom: var(--space-xl); }
 
-/* 搜索栏 */
-.search-bar { max-width: 600px; margin: 0 auto var(--space-md); }
-.search-input :deep(.el-input__wrapper) {
-  border-radius: var(--radius-full) !important;
-  padding: 4px 16px;
+/* Hero 区域 */
+.hero-section {
+  padding: var(--space-lg) var(--space-md) var(--space-md);
+  margin-bottom: var(--space-md);
+  background: var(--gradient-hero);
+  border-radius: var(--radius-xl);
+  text-align: center;
 }
+.hero-content { margin-bottom: var(--space-md); }
+.hero-icon { font-size: 36px; display: block; margin-bottom: 8px; }
+.hero-title {
+  font-size: 28px; font-weight: 800; color: var(--color-text);
+  letter-spacing: -.03em; margin-bottom: 6px;
+}
+.hero-sub { font-size: 14px; color: var(--color-text-secondary); }
 
-/* 分类导航 */
-.category-nav {
-  display: flex; justify-content: center; gap: 4px;
-  margin-bottom: var(--space-lg);
-  padding: 4px; background: var(--color-bg-alt);
-  border-radius: var(--radius-full); max-width: 500px;
-  margin-left: auto; margin-right: auto;
+.search-box {
+  max-width: 500px; margin: 0 auto;
+  padding: 12px 20px; background: var(--color-surface);
+  border-radius: var(--radius-full); border: 1.5px solid var(--color-border);
+  cursor: pointer; display: flex; align-items: center; gap: 8px;
+  transition: all var(--transition); box-shadow: var(--shadow-sm);
 }
-.category-item {
-  padding: 8px 20px; border-radius: var(--radius-full);
-  font-size: 14px; font-weight: 500; color: var(--color-text-secondary);
-  cursor: pointer; transition: all var(--transition);
-}
-.category-item.active {
-  background: var(--color-surface); color: var(--color-primary);
-  box-shadow: var(--shadow-xs);
-}
+.search-box:hover { border-color: var(--color-primary); box-shadow: var(--shadow-md); }
+.search-icon { font-size: 18px; }
+.search-text { font-size: 14px; color: var(--color-text-placeholder); }
 
-/* 菜品网格 */
-.dish-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr); gap: var(--space-md);
+/* 列表头 */
+.list-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: var(--space-md); padding: 0 2px;
 }
-.dish-card {
+.list-title { font-size: 18px; font-weight: 700; color: var(--color-text); display: flex; align-items: center; gap: 8px; }
+.title-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-primary); display: inline-block; }
+.list-count { font-size: 13px; color: var(--color-text-placeholder); background: var(--color-bg-alt); padding: 4px 12px; border-radius: var(--radius-full); }
+
+/* 商家网格 */
+.shop-grid { display: flex; flex-direction: column; gap: var(--space-sm); }
+
+/* 商家卡片 */
+.shop-card {
+  display: flex; gap: var(--space-md);
+  padding: var(--space-md);
   background: var(--color-surface); border-radius: var(--radius-lg);
   border: 1px solid var(--color-border-light);
-  overflow: hidden; position: relative;
-  transition: all var(--transition);
+  cursor: pointer; transition: all var(--transition);
+  position: relative; overflow: hidden;
 }
-.dish-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
-.dish-image { position: relative; height: 170px; overflow: hidden; background: var(--color-bg-alt); }
-.dish-image img { width: 100%; height: 100%; object-fit: cover; }
-.dish-tag {
-  position: absolute; top: 10px; left: 10px;
-  background: var(--color-primary); color: #fff;
+.shop-card::before {
+  content: ''; position: absolute; inset: 0; opacity: 0;
+  background: linear-gradient(135deg, var(--color-primary-bg), transparent 60%);
+  transition: opacity var(--transition);
+}
+.shop-card:hover::before { opacity: 1; }
+.shop-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: var(--color-primary-bg-strong); }
+
+.shop-avatar {
+  width: 68px; height: 68px; border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 26px; font-weight: 700;
+  flex-shrink: 0; position: relative; z-index: 1;
+  box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  overflow: hidden;
+}
+.shop-logo-img { width: 100%; height: 100%; object-fit: cover; }
+.shop-logo-text { font-size: 26px; font-weight: 700; }
+
+.shop-body { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.shop-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.shop-name { font-size: 17px; font-weight: 700; color: var(--color-text); }
+.shop-rating {
+  font-size: 12px; color: var(--color-warning); font-weight: 600;
+  background: var(--color-warning-bg); padding: 2px 8px; border-radius: var(--radius-full);
+}
+
+.shop-meta { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.dot { margin: 0 4px; color: var(--color-border); }
+
+.shop-tags { display: flex; gap: 6px; margin-bottom: 6px; }
+.tag {
   padding: 2px 10px; border-radius: var(--radius-full);
-  font-size: 11px; font-weight: 600;
+  font-size: 11px; font-weight: 500;
+  background: var(--color-bg-alt); color: var(--color-text-secondary);
 }
-.dish-info { padding: var(--space-sm) var(--space-sm) 0; }
-.dish-name { font-size: 15px; font-weight: 600; color: var(--color-text); margin-bottom: 4px; }
-.dish-desc { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dish-footer { display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-sm); }
-.dish-price { font-size: 18px; font-weight: 700; color: var(--color-primary); }
-.dish-sales { font-size: 12px; color: var(--color-text-placeholder); }
-.dish-add-btn {
-  position: absolute; bottom: 12px; right: 12px;
-  width: 34px; height: 34px; border-radius: var(--radius-full);
-  border: 1px solid var(--color-primary); background: var(--color-surface);
-  color: var(--color-primary); font-size: 18px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all var(--transition);
-}
-.dish-add-btn:hover { background: var(--color-primary); color: #fff; }
+.tag.discount { background: #fef3c7; color: #b45309; }
+.tag.new { background: #dbeafe; color: #2563eb; }
 
-/* 加载更多 */
-.pagination-info { text-align: center; margin-top: var(--space-md); color: var(--color-text-secondary); font-size: 13px; }
-.load-more { text-align: center; margin-top: var(--space-sm); }
-
-/* 购物车浮动按钮 */
-.cart-float {
-  position: fixed; bottom: 32px; right: 32px;
-  width: 56px; height: 56px; border-radius: var(--radius-full);
-  background: var(--color-primary); color: #fff;
-  font-size: 22px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; box-shadow: var(--shadow-lg); transition: all var(--transition);
-  z-index: 50;
-}
-.cart-float:hover { transform: scale(1.08); }
-.cart-float-badge {
-  position: absolute; top: -4px; right: -4px;
-  min-width: 22px; height: 22px; border-radius: var(--radius-full);
-  background: var(--color-danger); color: #fff;
-  font-size: 12px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-}
-
-@media (max-width: 768px) {
-  .dish-grid { grid-template-columns: repeat(2, 1fr); }
+.shop-desc {
+  font-size: 12px; color: var(--color-text-placeholder);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 </style>

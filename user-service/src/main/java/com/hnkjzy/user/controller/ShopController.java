@@ -1,5 +1,6 @@
 package com.hnkjzy.user.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hnkjzy.user.entity.Shop;
 import com.hnkjzy.user.service.ShopService;
 import com.hnkjzy.user.utils.JwtUtil;
@@ -7,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -20,7 +22,7 @@ public class ShopController {
     private JwtUtil jwtUtil;
 
     /**
-     * 商家注册（创建用户+店铺）
+     * 商家注册（创建商家用户+店铺）
      */
     @PostMapping("/register")
     public Map<String, Object> registerMerchant(@RequestBody Map<String, String> data) {
@@ -57,11 +59,11 @@ public class ShopController {
     }
 
     /**
-     * 获取当前商家的店铺信息
+     * 获取当前商家的所有店铺信息（支持多店铺，返回列表）
      */
     @GetMapping("/my")
-    public Map<String, Object> getMyShop(@RequestHeader(value = "X-User-Id", required = false) Long xUserId,
-                                          @RequestHeader(value = "Authorization", required = false) String authToken) {
+    public Map<String, Object> getMyShops(@RequestHeader(value = "X-User-Id", required = false) Long xUserId,
+                                           @RequestHeader(value = "Authorization", required = false) String authToken) {
         Map<String, Object> result = new HashMap<>();
         try {
             Long userId = xUserId;
@@ -75,10 +77,12 @@ public class ShopController {
                 return result;
             }
 
-            Shop shop = shopService.getByUserId(userId);
+            // 返回店铺列表（支持多店铺）
+            List<Shop> shops = shopService.getByUserId(userId);
             result.put("code", 200);
             result.put("message", "成功");
-            result.put("data", shop);
+            result.put("data", shops);
+            result.put("count", shops.size());
         } catch (Exception e) {
             result.put("code", 500);
             result.put("message", "查询失败: " + e.getMessage());
@@ -107,12 +111,70 @@ public class ShopController {
             }
 
             Shop saved = shopService.saveOrUpdateShop(userId, shopData);
+            if (saved == null) {
+                result.put("code", 403);
+                result.put("message", "无权限编辑该店铺");
+                return result;
+            }
             result.put("code", 200);
             result.put("message", "保存成功");
             result.put("data", saved);
         } catch (Exception e) {
             result.put("code", 500);
             result.put("message", "保存失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 商家创建新店铺
+     */
+    @PostMapping("/create")
+    public Map<String, Object> createShop(@RequestHeader(value = "X-User-Id", required = false) Long xUserId,
+                                           @RequestHeader(value = "Authorization", required = false) String authToken,
+                                           @RequestBody Shop shopData) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Long userId = xUserId;
+            if (userId == null && authToken != null) {
+                if (authToken.startsWith("Bearer ")) authToken = authToken.substring(7);
+                userId = jwtUtil.getUserIdFromToken(authToken);
+            }
+            if (userId == null) {
+                result.put("code", 401);
+                result.put("message", "未登录");
+                return result;
+            }
+
+            Shop created = shopService.createShop(userId, shopData);
+            result.put("code", 200);
+            result.put("message", "店铺创建成功");
+            result.put("data", created);
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", "创建失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 公开接口：获取所有营业中的店铺列表（用户端浏览商家用）
+     */
+    @GetMapping("/all")
+    public Map<String, Object> getAllShops() {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            LambdaQueryWrapper<Shop> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(Shop::getStatus, 1)
+                   .orderByDesc(Shop::getCreateTime);
+            List<Shop> shops = shopService.list(wrapper);
+
+            result.put("code", 200);
+            result.put("message", "成功");
+            result.put("data", shops);
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", "查询失败: " + e.getMessage());
         }
         return result;
     }
@@ -127,8 +189,7 @@ public class ShopController {
         try {
             com.baomidou.mybatisplus.extension.plugins.pagination.Page<Shop> page =
                     new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize);
-            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Shop> wrapper =
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+            LambdaQueryWrapper<Shop> wrapper = new LambdaQueryWrapper<>();
             wrapper.orderByDesc(Shop::getCreateTime);
 
             com.baomidou.mybatisplus.extension.plugins.pagination.Page<Shop> resultPage =

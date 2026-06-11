@@ -122,4 +122,10 @@ public class DishController {
     public String testHost() {
         return "Host匹配成功";
     }
+
+    // ===== 销量递增接口（供 order-service 调用） =====
+    @PutMapping("/sales/add/{id}")
+    public Result<String> addSales(@PathVariable Long id, @RequestParam(defaultValue = "1") Integer count) {
+        return dishService.addSales(id, count) ? Result.success("销量已更新") : Result.error("更新失败");
+    }
 }

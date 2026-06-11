@@ -113,4 +113,15 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
         
         return this.list(wrapper);
     }
+
+    @Override
+    public boolean addSales(Long id, Integer count) {
+        Dish dish = this.getById(id);
+        if (dish == null) return false;
+        int newSales = (dish.getSales() != null ? dish.getSales() : 0) + count;
+        return this.lambdaUpdate()
+                .eq(Dish::getId, id)
+                .set(Dish::getSales, newSales)
+                .update();
+    }
 }

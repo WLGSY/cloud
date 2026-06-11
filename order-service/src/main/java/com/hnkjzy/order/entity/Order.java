@@ -19,7 +19,11 @@ public class Order {
     private String userPhone;
     private BigDecimal totalAmount;
     private Long shopId;            // 店铺ID
-    private Integer status;         // 0=待支付, 1=已支付, 2=已取消, 3=已完成
+    private Integer status;         // 0=待支付, 1=已支付, 2=已取消, 3=已完成, 4=配送中, 5=已送达
+
+    // 配送信息
+    private Long riderId;           // 骑手ID
+    private Integer deliveryStatus; // 配送状态: 0=待取货, 1=配送中, 2=已送达
 
     // 收货信息
     private String receiver;

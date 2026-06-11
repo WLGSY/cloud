@@ -3,7 +3,10 @@
     <!-- 顶部导航 — 毛玻璃效果 -->
     <header class="topbar">
       <div class="topbar-inner">
-        <router-link to="/" class="logo">🍃 云外卖</router-link>
+        <router-link to="/" class="logo">
+          <span class="logo-mark">🍃</span>
+          <span class="logo-text">云外卖</span>
+        </router-link>
         <nav class="nav-links">
           <router-link to="/" class="nav-item" :class="{ active: $route.path === '/' }">首页</router-link>
           <router-link to="/orders" class="nav-item" :class="{ active: $route.path === '/orders' }">订单</router-link>
@@ -16,8 +19,10 @@
           </router-link>
           <template v-if="userStore.isLoggedIn()">
             <router-link to="/profile" class="user-link">
-              <span class="avatar-dot">{{ (userStore.userInfo?.username || 'U')[0].toUpperCase() }}</span>
-              <span class="username">{{ userStore.userInfo?.username }}</span>
+              <img v-if="isImageUrl(userStore.userInfo?.avatar)" :src="userStore.userInfo.avatar" class="avatar-img" />
+              <span v-else-if="userStore.userInfo?.avatar" class="avatar-emoji">{{ userStore.userInfo.avatar }}</span>
+              <span v-else class="avatar-dot">{{ (userStore.userInfo?.username || 'U')[0].toUpperCase() }}</span>
+              <span class="username">{{ userStore.userInfo?.nickname || userStore.userInfo?.username }}</span>
             </router-link>
             <button class="btn-text" @click="handleLogout">退出</button>
           </template>
@@ -45,6 +50,8 @@ const router = useRouter()
 const userStore = useUserStore()
 const cartStore = useCartStore()
 
+const isImageUrl = (url) => url && (url.startsWith('http') || url.startsWith('/') || url.startsWith('data:'))
+
 const handleLogout = () => {
   userStore.logout()
   ElMessage.success('已退出登录')
@@ -60,13 +67,12 @@ const handleLogout = () => {
 
 /* 顶部导航 — 毛玻璃 */
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,.78);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
   border-bottom: 1px solid var(--color-border-light);
+  box-shadow: 0 1px 4px rgba(0,0,0,.02);
 }
 .topbar-inner {
   max-width: 1200px;
@@ -78,12 +84,16 @@ const handleLogout = () => {
   gap: var(--space-md);
 }
 .logo {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--color-text);
-  text-decoration: none;
-  letter-spacing: -0.02em;
-  flex-shrink: 0;
+  font-size: 20px; font-weight: 700;
+  color: var(--color-text); text-decoration: none;
+  letter-spacing: -.02em; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.logo-mark { font-size: 24px; }
+.logo-text {
+  background: linear-gradient(135deg, var(--color-primary), #a78bfa);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 .nav-links {
   display: flex;
@@ -153,6 +163,19 @@ const handleLogout = () => {
 }
 .user-link:hover {
   background: var(--color-bg-alt);
+}
+.avatar-img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--color-border-light);
+}
+.avatar-emoji {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--color-bg-alt); display: inline-flex;
+  align-items: center; justify-content: center; font-size: 18px;
+  flex-shrink: 0;
 }
 .avatar-dot {
   width: 30px;

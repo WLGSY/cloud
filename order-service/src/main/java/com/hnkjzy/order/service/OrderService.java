@@ -9,35 +9,32 @@ import java.util.List;
 
 public interface OrderService extends IService<Order> {
 
-    /**
-     * 创建订单（支持多菜品）
-     */
     Order createOrder(CreateOrderDTO dto);
 
-    /**
-     * 根据用户ID分页查询订单
-     */
     PageResult<OrderVO> getOrdersByUserId(Long userId, Integer pageNum, Integer pageSize, Integer status);
 
-    /**
-     * 取消订单
-     */
     boolean cancelOrder(Long id, String reason);
-
     boolean cancelOrder(Long id);
 
-    /**
-     * 更新订单状态
-     */
     boolean updateStatus(Long id, Integer status);
-
-    /**
-     * 确认收货（状态 1→3）
-     */
     boolean completeOrder(Long id);
 
-    /**
-     * 根据店铺ID查询订单（商家端用）
-     */
-    PageResult<OrderVO> getOrdersByShopId(Long shopId, Integer pageNum, Integer pageSize, Integer status);
+    PageResult<OrderVO> getOrdersByShopId(Long shopId, Integer pageNum, Integer pageSize, Integer status, String keyword);
+
+    // ===== 骑手相关 =====
+
+    /** 可接订单池（已支付 + 未分配骑手） */
+    PageResult<OrderVO> getAvailableOrders(Integer pageNum, Integer pageSize);
+
+    /** 骑手接单 */
+    boolean acceptOrder(Long orderId, Long riderId);
+
+    /** 骑手取货 */
+    boolean pickupOrder(Long orderId, Long riderId);
+
+    /** 骑手送达 */
+    boolean deliverOrder(Long orderId, Long riderId);
+
+    /** 骑手配送列表 */
+    PageResult<OrderVO> getRiderOrders(Long riderId, Integer deliveryStatus, Integer pageNum, Integer pageSize);
 }

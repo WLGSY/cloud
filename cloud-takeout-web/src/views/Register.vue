@@ -77,18 +77,25 @@ const handleRegister = async () => {
 <style scoped>
 .register-page {
   display: flex; justify-content: center; align-items: center;
-  min-height: 100vh; background: var(--color-bg); padding: var(--space-md);
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f4ff 0%, #f5f3ff 30%, #fdf2f8 60%, #fff5f0 100%);
+  padding: var(--space-md);
 }
 .register-card {
   width: 440px; padding: var(--space-xl);
   background: var(--color-surface); border-radius: var(--radius-xl);
-  border: 1px solid var(--color-border-light); box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border-light); box-shadow: var(--shadow-lg);
+  animation: scaleIn .4s var(--transition);
 }
 .card-header { text-align: center; margin-bottom: var(--space-lg); }
-.logo-icon { font-size: 40px; margin-bottom: var(--space-sm); }
-.card-header h1 { font-size: 24px; font-weight: 700; color: var(--color-text); letter-spacing: -0.03em; margin-bottom: 4px; }
+.logo-icon {
+  font-size: 48px; margin-bottom: var(--space-sm);
+  display: inline-block; animation: fadeInUp .6s var(--transition);
+}
+.card-header h1 { font-size: 26px; font-weight: 800; color: var(--color-text); letter-spacing: -.03em; margin-bottom: 4px; }
 .card-header p { font-size: 14px; color: var(--color-text-secondary); }
-.submit-btn { width: 100%; margin-top: var(--space-sm); }
+.submit-btn { width: 100%; margin-top: var(--space-sm); height: 44px; font-size: 15px; }
 .card-footer { margin-top: var(--space-md); text-align: center; }
-.card-footer a { color: var(--color-primary); text-decoration: none; font-size: 14px; }
+.card-footer a { color: var(--color-primary); text-decoration: none; font-size: 14px; font-weight: 500; }
+.card-footer a:hover { color: var(--color-primary-dark); }
 </style>

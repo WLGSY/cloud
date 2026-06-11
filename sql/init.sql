@@ -4,8 +4,8 @@
 -- =========================================
 SET NAMES utf8mb4;
 
--- ===== 用户表 =====
-CREATE TABLE IF NOT EXISTS `user` (
+-- ===== 普通用户表 =====
+CREATE TABLE IF NOT EXISTS `customer_user` (
     `id`          BIGINT AUTO_INCREMENT PRIMARY KEY,
     `username`    VARCHAR(50)  NOT NULL COMMENT '用户名',
     `password`    VARCHAR(100) NOT NULL COMMENT '密码(MD5加密)',
@@ -15,11 +15,39 @@ CREATE TABLE IF NOT EXISTS `user` (
     `gender`      VARCHAR(10)  DEFAULT '保密' COMMENT '性别',
     `birthday`    VARCHAR(20)  DEFAULT NULL COMMENT '出生日期',
     `avatar`      VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
-    `role`        VARCHAR(20)  DEFAULT 'user' COMMENT '角色: user/merchant/admin/rider',
     `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    UNIQUE INDEX `uk_username` (`username`),
-    INDEX `idx_role` (`role`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+    UNIQUE INDEX `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='普通用户表';
+
+-- ===== 商家用户表 =====
+CREATE TABLE IF NOT EXISTS `merchant_user` (
+    `id`          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `username`    VARCHAR(50)  NOT NULL COMMENT '用户名',
+    `password`    VARCHAR(100) NOT NULL COMMENT '密码(MD5加密)',
+    `phone`       VARCHAR(20)  DEFAULT NULL COMMENT '手机号',
+    `nickname`    VARCHAR(50)  DEFAULT NULL COMMENT '昵称',
+    `email`       VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    `gender`      VARCHAR(10)  DEFAULT '保密' COMMENT '性别',
+    `birthday`    VARCHAR(20)  DEFAULT NULL COMMENT '出生日期',
+    `avatar`      VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
+    `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE INDEX `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商家用户表';
+
+-- ===== 管理员用户表 =====
+CREATE TABLE IF NOT EXISTS `admin_user` (
+    `id`          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `username`    VARCHAR(50)  NOT NULL COMMENT '用户名',
+    `password`    VARCHAR(100) NOT NULL COMMENT '密码(MD5加密)',
+    `phone`       VARCHAR(20)  DEFAULT NULL COMMENT '手机号',
+    `nickname`    VARCHAR(50)  DEFAULT NULL COMMENT '昵称',
+    `email`       VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    `gender`      VARCHAR(10)  DEFAULT '保密' COMMENT '性别',
+    `birthday`    VARCHAR(20)  DEFAULT NULL COMMENT '出生日期',
+    `avatar`      VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
+    `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE INDEX `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员用户表';
 
 -- ===== 店铺表 =====
 CREATE TABLE IF NOT EXISTS `shop` (
@@ -34,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `shop` (
     `user_id`     BIGINT       NOT NULL COMMENT '店主用户ID（关联user表）',
     `status`      TINYINT      DEFAULT 1 COMMENT '状态: 1=营业中, 0=已关闭',
     `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    UNIQUE INDEX `uk_user_id` (`user_id`),
+    INDEX `idx_user_id` (`user_id`),
     INDEX `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='店铺表';
 
@@ -96,21 +124,26 @@ CREATE TABLE IF NOT EXISTS `points_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='积分日志表';
 
 -- =========================================
--- 演示数据
+-- 演示数据（v3：分表结构）
 -- =========================================
 
--- 管理员账号（密码: admin123）
-INSERT INTO `user` (`username`, `password`, `nickname`, `role`, `phone`)
-VALUES ('admin', '0192023a7bbd73250516f069df18b500', '系统管理员', 'admin', '13800000000')
-ON DUPLICATE KEY UPDATE `role` = VALUES(`role`), `nickname` = VALUES(`nickname`);
+-- 管理员账号（密码: admin123 → MD5）
+INSERT INTO `admin_user` (`username`, `password`, `nickname`, `phone`)
+VALUES ('admin', '0192023a7bbd73250516f069df18b500', '系统管理员', '13800000000')
+ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`);
 
--- 商家账号（密码: merchant123）
-INSERT INTO `user` (`username`, `password`, `nickname`, `role`, `phone`)
-VALUES ('merchant', 'a52f2c0dbf38ade4f715e02c7124046e', '美食商家', 'merchant', '13900000001')
-ON DUPLICATE KEY UPDATE `role` = VALUES(`role`), `nickname` = VALUES(`nickname`);
+-- 商家账号（密码: merchant123 → MD5）
+INSERT INTO `merchant_user` (`username`, `password`, `nickname`, `phone`)
+VALUES ('merchant', 'a52f2c0dbf38ade4f715e02c7124046e', '美食商家', '13900000001')
+ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`);
 
--- 商家店铺
+-- 商家店铺（关联 merchant_user）
 INSERT INTO `shop` (`name`, `phone`, `address`, `description`, `user_id`, `status`)
 SELECT '美食商家总店', '13900000001', '北京市朝阳区xxx路88号', '提供各类美食外卖服务', id, 1
-FROM `user` WHERE username = 'merchant'
+FROM `merchant_user` WHERE username = 'merchant'
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+-- 普通测试用户（密码: 123456 → MD5）
+INSERT INTO `customer_user` (`username`, `password`, `nickname`, `phone`, `email`)
+VALUES ('test', 'e10adc3949ba59abbe56e057f20f883e', '测试用户', '13700000000', 'test@example.com')
+ON DUPLICATE KEY UPDATE `nickname` = VALUES(`nickname`);

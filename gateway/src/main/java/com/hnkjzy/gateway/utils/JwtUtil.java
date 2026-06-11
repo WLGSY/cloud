@@ -48,6 +48,14 @@ public class JwtUtil {
         return null;
     }
 
+    public String getUserTypeFromToken(String token) {
+        Claims claims = parseToken(token);
+        if (claims != null) {
+            return (String) claims.get("userType");
+        }
+        return null;
+    }
+
     private Claims parseToken(String token) {
         try {
             SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));

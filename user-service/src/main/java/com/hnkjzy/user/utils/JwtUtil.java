@@ -26,13 +26,15 @@ public class JwtUtil {
      * @param userId 用户ID
      * @param username 用户名
      * @param role 用户角色
+     * @param userType 用户类型 (customer/merchant/admin)
      * @return JWT Token
      */
-    public String generateToken(Long userId, String username, String role) {
+    public String generateToken(Long userId, String username, String role, String userType) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
         claims.put("role", role != null ? role : "user");
+        claims.put("userType", userType != null ? userType : "customer");
 
         Date now = new Date();
         Date expireDate = new Date(now.getTime() + expiration * 1000);
@@ -83,6 +85,19 @@ public class JwtUtil {
         Claims claims = parseToken(token);
         if (claims != null) {
             return (String) claims.get("role");
+        }
+        return null;
+    }
+
+    /**
+     * 从Token中获取用户类型
+     * @param token JWT Token
+     * @return 用户类型 (customer/merchant/admin)
+     */
+    public String getUserTypeFromToken(String token) {
+        Claims claims = parseToken(token);
+        if (claims != null) {
+            return (String) claims.get("userType");
         }
         return null;
     }

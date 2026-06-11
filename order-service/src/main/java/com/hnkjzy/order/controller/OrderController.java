@@ -27,8 +27,9 @@ public class OrderController {
      */
     @PostMapping("/create")
     public Result<Order> createOrder(@RequestBody CreateOrderDTO dto,
-                                      @RequestHeader(value = "X-User-Id", required = false) Long xUserId) {
-        // userId fallback: 如果请求体中没有 userId，使用 Gateway JWT 过滤器中注入的 X-User-Id
+                                      @RequestHeader(value = "X-User-Id", required = false) String xUserIdStr) {
+        // userId fallback: 处理 Gateway 可能传 "null" 字符串的情况
+        Long xUserId = parseLongHeader(xUserIdStr);
         if (dto.getUserId() == null) {
             dto.setUserId(xUserId);
         }
@@ -73,10 +74,11 @@ public class OrderController {
      */
     @GetMapping("/list")
     public Result<PageResult<OrderVO>> list(
-            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) String xUserIdStr,
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) Integer status) {
+        Long userId = parseLongHeader(xUserIdStr);
         if (userId == null) {
             log.warn("[订单服务] X-User-Id header 为空");
             return Result.error(401, "未获取到用户信息");
@@ -87,16 +89,17 @@ public class OrderController {
     }
 
     /**
-     * 商家端：按店铺ID查询订单列表
+     * 商家端：按店铺ID查询订单列表（支持关键词搜索和状态筛选）
      */
     @GetMapping("/shop")
     public Result<PageResult<OrderVO>> listByShop(
             @RequestParam Long shopId,
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) Integer status) {
-        log.info("[订单服务] 商家订单列表，shopId: {}", shopId);
-        PageResult<OrderVO> result = orderService.getOrdersByShopId(shopId, pageNum, pageSize, status);
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String keyword) {
+        log.info("[订单服务] 商家订单列表，shopId: {}, keyword: {}", shopId, keyword);
+        PageResult<OrderVO> result = orderService.getOrdersByShopId(shopId, pageNum, pageSize, status, keyword);
         return Result.success(result);
     }
 
@@ -144,6 +147,64 @@ public class OrderController {
         return success ? Result.success("取消成功") : Result.error("取消失败");
     }
 
+    // ==================== 骑手接口 ====================
+
+    /**
+     * 可接订单池（已支付 + 未分配骑手）
+     */
+    @GetMapping("/available")
+    public Result<PageResult<OrderVO>> availableOrders(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        log.info("[订单服务] 查询可接订单池");
+        PageResult<OrderVO> result = orderService.getAvailableOrders(pageNum, pageSize);
+        return Result.success(result);
+    }
+
+    /**
+     * 骑手接单
+     */
+    @PostMapping("/{id}/accept")
+    public Result<String> acceptOrder(@PathVariable Long id, @RequestParam Long riderId) {
+        log.info("[订单服务] 骑手接单，订单ID: {}, 骑手ID: {}", id, riderId);
+        boolean success = orderService.acceptOrder(id, riderId);
+        return success ? Result.success("接单成功") : Result.error("接单失败，订单已被其他骑手接单");
+    }
+
+    /**
+     * 骑手取货
+     */
+    @PostMapping("/{id}/pickup")
+    public Result<String> pickupOrder(@PathVariable Long id, @RequestParam Long riderId) {
+        log.info("[订单服务] 骑手取货，订单ID: {}", id);
+        boolean success = orderService.pickupOrder(id, riderId);
+        return success ? Result.success("已取货，开始配送") : Result.error("取货失败");
+    }
+
+    /**
+     * 骑手送达
+     */
+    @PostMapping("/{id}/deliver")
+    public Result<String> deliverOrder(@PathVariable Long id, @RequestParam Long riderId) {
+        log.info("[订单服务] 骑手送达，订单ID: {}", id);
+        boolean success = orderService.deliverOrder(id, riderId);
+        return success ? Result.success("已送达") : Result.error("送达失败");
+    }
+
+    /**
+     * 骑手配送列表
+     */
+    @GetMapping("/rider")
+    public Result<PageResult<OrderVO>> riderOrders(
+            @RequestParam Long riderId,
+            @RequestParam(required = false) Integer deliveryStatus,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        log.info("[订单服务] 骑手配送列表，riderId: {}", riderId);
+        PageResult<OrderVO> result = orderService.getRiderOrders(riderId, deliveryStatus, pageNum, pageSize);
+        return Result.success(result);
+    }
+
     /**
      * 更新订单状态（兼容旧接口）
      */
@@ -151,5 +212,11 @@ public class OrderController {
     public Result<String> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         boolean success = orderService.updateStatus(id, status);
         return success ? Result.success("更新成功") : Result.error("更新失败");
+    }
+
+    /** 安全地将 header 字符串转为 Long，处理 Gateway 传 "null" 的情况 */
+    private Long parseLongHeader(String val) {
+        if (val == null || val.isEmpty() || "null".equals(val)) return null;
+        try { return Long.parseLong(val); } catch (NumberFormatException e) { return null; }
     }
 }

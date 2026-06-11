@@ -2,6 +2,18 @@
   <div class="orders-page">
     <h2 class="page-title">📦 订单管理</h2>
 
+    <!-- 搜索栏 + 店铺选择器 -->
+    <div class="toolbar">
+      <el-select v-model="selectedShopId" placeholder="选择店铺" @change="onShopChange" class="shop-select">
+        <el-option v-for="s in shops" :key="s.id" :label="s.name" :value="s.id" />
+      </el-select>
+      <el-input v-model="keyword" placeholder="搜索订单号/客户名/收货人" clearable @clear="onSearch" @keyup.enter="onSearch" class="search-input">
+        <template #prefix><span style="font-size:14px">🔍</span></template>
+      </el-input>
+      <el-button type="primary" @click="onSearch" :disabled="!selectedShopId">搜索</el-button>
+    </div>
+
+    <!-- 状态标签页 -->
     <el-tabs v-model="activeStatus" @tab-change="loadOrders" class="order-tabs">
       <el-tab-pane label="全部" name="all" />
       <el-tab-pane label="待支付" name="0" />
@@ -49,23 +61,59 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { orderApi } from '@/api/order'
-import { useUserStore } from '@/stores/user'
+import { shopApi } from '@/api/shop'
 import request from '@/api/request'
 
-const userStore = useUserStore()
-const orderList = ref([]); const activeStatus = ref('all')
-const pageNum = ref(1); const pageSize = ref(10)
-const total = ref(0); const loading = ref(false)
+const orderList = ref([])
+const activeStatus = ref('all')
+const pageNum = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const loading = ref(false)
+const keyword = ref('')
+
+// 多店铺支持
+const shops = ref([])
+const selectedShopId = ref(null)
+
 const statusType = (s) => ({ 0: 'warning', 1: 'success', 2: 'info', 3: '' }[s] || 'info')
 
+const loadShops = async () => {
+  try {
+    const res = await shopApi.getMyShops()
+    if (res.code === 200) {
+      shops.value = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : [])
+      if (shops.value.length > 0 && !selectedShopId.value) {
+        selectedShopId.value = shops.value[0].id
+        loadOrders()
+      }
+    }
+  } catch {}
+}
+
+const onShopChange = () => {
+  pageNum.value = 1
+  loadOrders()
+}
+
+const onSearch = () => {
+  pageNum.value = 1
+  loadOrders()
+}
+
 const loadOrders = async () => {
+  if (!selectedShopId.value) return
   loading.value = true
   try {
-    const shopId = userStore.userInfo?.shopId
-    if (!shopId) { ElMessage.warning('请先完善店铺信息'); loading.value = false; return }
+    const shopId = selectedShopId.value
     const status = activeStatus.value === 'all' ? null : parseInt(activeStatus.value)
-    const res = await request.get('/api/order/shop', { params: { shopId, pageNum: pageNum.value, pageSize: pageSize.value, status } })
-    if (res.code === 200) { orderList.value = res.data.list || []; total.value = res.data.total || 0 }
+    const params = { shopId, pageNum: pageNum.value, pageSize: pageSize.value, status }
+    if (keyword.value.trim()) params.keyword = keyword.value.trim()
+    const res = await request.get('/api/order/shop', { params })
+    if (res.code === 200) {
+      orderList.value = res.data.list || []
+      total.value = res.data.total || 0
+    }
   } catch { ElMessage.error('加载失败') } finally { loading.value = false }
 }
 
@@ -77,12 +125,15 @@ const handleComplete = async (id) => {
   } catch {}
 }
 
-onMounted(() => loadOrders())
+onMounted(() => loadShops())
 </script>
 
 <style scoped>
 .orders-page { max-width: 1100px; }
 .page-title { font-size: 22px; font-weight: 700; color: var(--color-text); margin-bottom: var(--space-md); }
+.toolbar { display: flex; gap: var(--space-sm); margin-bottom: var(--space-sm); align-items: center; flex-wrap: wrap; }
+.shop-select { width: 160px; flex-shrink: 0; }
+.search-input { width: 280px; }
 .order-tabs { margin-bottom: var(--space-sm); }
 .pagination-bar { margin-top: var(--space-md); text-align: center; }
 .text-done { color: var(--color-success); font-size: 13px; }

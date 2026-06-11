@@ -1,6 +1,13 @@
 <template>
   <div class="dashboard">
-    <h2 class="page-title">📊 数据看板</h2>
+    <div class="page-header">
+      <h2 class="page-title">📊 数据看板</h2>
+      <!-- 多店铺时显示选择器 -->
+      <el-select v-if="shops.length > 1" v-model="selectedShopId" @change="onShopChange" placeholder="选择店铺" class="shop-select">
+        <el-option v-for="s in shops" :key="s.id" :label="s.name" :value="s.id" />
+        <el-option label="全部店铺" :value="0" />
+      </el-select>
+    </div>
 
     <el-row :gutter="16" class="stats-row">
       <el-col :span="6">
@@ -64,37 +71,73 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { dishApi } from '@/api/dish'
-import { useUserStore } from '@/stores/user'
+import { shopApi } from '@/api/shop'
 import request from '@/api/request'
 
-const userStore = useUserStore()
 const stats = ref({ totalDishes: 0, onSaleDishes: 0, totalOrders: 0, todayIncome: 0 })
 const recentOrders = ref([])
+const shops = ref([])
+const selectedShopId = ref(null)
+const allShopIds = ref([])
 
-onMounted(async () => {
-  const shopId = userStore.userInfo?.shopId
+const loadShops = async () => {
   try {
-    const dishRes = await dishApi.getList({ pageNum: 1, pageSize: 100, shopId })
-    if (dishRes.code === 200) {
-      stats.value.totalDishes = dishRes.data.total
-      stats.value.onSaleDishes = (dishRes.data.list || []).filter(d => d.status === 1).length
+    const res = await shopApi.getMyShops()
+    if (res.code === 200) {
+      shops.value = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : [])
+      allShopIds.value = shops.value.map(s => s.id)
+      if (shops.value.length > 0) {
+        selectedShopId.value = shops.value[0].id
+      }
+      loadStats()
     }
   } catch {}
+}
+
+const onShopChange = () => { loadStats() }
+
+const loadStats = async () => {
   try {
-    if (!shopId) return
-    const orderRes = await request.get('/api/order/shop', { params: { shopId, pageNum: 1, pageSize: 5 } })
-    if (orderRes.code === 200) {
-      recentOrders.value = orderRes.data.list || []
-      stats.value.totalOrders = orderRes.data.total
-      stats.value.todayIncome = (orderRes.data.list || []).reduce((s, o) => s + (o.totalAmount || 0), 0).toFixed(2)
+    // 聚合或单店铺统计
+    const targetShopIds = selectedShopId.value > 0 ? [selectedShopId.value] : allShopIds.value
+    let totalDishes = 0, onSaleDishes = 0
+
+    for (const shopId of targetShopIds) {
+      const dishRes = await dishApi.getList({ pageNum: 1, pageSize: 100, shopId })
+      if (dishRes.code === 200) {
+        totalDishes += dishRes.data.total
+        onSaleDishes += (dishRes.data.list || []).filter(d => d.status === 1).length
+      }
     }
+
+    // 加载所有相关店铺的订单
+    let allOrders = []
+    for (const shopId of targetShopIds) {
+      const orderRes = await request.get('/api/order/shop', { params: { shopId, pageNum: 1, pageSize: 200 } })
+      if (orderRes.code === 200) {
+        allOrders = allOrders.concat(orderRes.data.list || [])
+      }
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const todayOrders = allOrders.filter(o => (o.createTime || '').startsWith(today))
+    const income = todayOrders
+      .filter(o => o.status === 1 || o.status === 3)
+      .reduce((s, o) => s + (o.totalAmount || 0), 0).toFixed(2)
+
+    stats.value = { totalDishes, onSaleDishes, totalOrders: todayOrders.length, todayIncome: income }
+    recentOrders.value = allOrders.slice(0, 5)
   } catch {}
-})
+}
+
+onMounted(() => loadShops())
 </script>
 
 <style scoped>
 .dashboard { max-width: 1100px; }
-.page-title { font-size: 22px; font-weight: 700; color: var(--color-text); margin-bottom: var(--space-md); }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); }
+.page-title { font-size: 22px; font-weight: 700; color: var(--color-text); }
+.shop-select { width: 160px; }
 .stats-row { margin-bottom: var(--space-md); }
 .stat-card {
   padding: var(--space-md); text-align: center;

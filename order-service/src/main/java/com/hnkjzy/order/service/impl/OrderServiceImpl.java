@@ -114,7 +114,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         this.save(order);
 
-        // 6. 发送订单创建消息
+        // 6. 异步更新菜品销量（最终一致性，失败不影响主流程）
+        for (CreateOrderDTO.OrderItemDTO item : dto.getItems()) {
+            try {
+                dishClient.addSales(item.getDishId(), item.getQuantity());
+                log.info("[订单服务] 菜品销量已更新，dishId: {}, 增加: {}", item.getDishId(), item.getQuantity());
+            } catch (Exception e) {
+                log.error("[订单服务] 更新菜品销量失败，dishId: {}", item.getDishId(), e);
+            }
+        }
+
+        // 7. 发送订单创建消息
         try {
             orderMessageSender.sendOrderCreated(order);
         } catch (Exception e) {
@@ -148,7 +158,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
-    public PageResult<OrderVO> getOrdersByShopId(Long shopId, Integer pageNum, Integer pageSize, Integer status) {
+    public PageResult<OrderVO> getOrdersByShopId(Long shopId, Integer pageNum, Integer pageSize, Integer status, String keyword) {
         Page<Order> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getShopId, shopId);
@@ -156,6 +166,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (status != null) {
             wrapper.eq(Order::getStatus, status);
         }
+
+        // 关键词搜索：订单号、用户名、收货人、地址
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            wrapper.and(w -> w.like(Order::getOrderNo, keyword)
+                    .or().like(Order::getUserName, keyword)
+                    .or().like(Order::getReceiver, keyword)
+                    .or().like(Order::getAddress, keyword));
+        }
+
         wrapper.orderByDesc(Order::getCreateTime);
 
         Page<Order> resultPage = this.page(page, wrapper);
@@ -165,7 +184,68 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return new PageResult<>(voList, resultPage.getTotal());
     }
 
-    // 旧的 List 返回方法保留用于内部调用（无 @Override，不在接口中）
+    // ==================== 骑手相关方法 ====================
+
+    @Override
+    public PageResult<OrderVO> getAvailableOrders(Integer pageNum, Integer pageSize) {
+        Page<Order> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getStatus, 1)          // 已支付
+               .isNull(Order::getRiderId)         // 未分配骑手
+               .orderByDesc(Order::getCreateTime);
+        Page<Order> resultPage = this.page(page, wrapper);
+        List<OrderVO> voList = resultPage.getRecords().stream()
+                .map(this::convertToVO).collect(Collectors.toList());
+        return new PageResult<>(voList, resultPage.getTotal());
+    }
+
+    @Override
+    @Transactional
+    public boolean acceptOrder(Long orderId, Long riderId) {
+        Order order = this.getById(orderId);
+        if (order == null || order.getStatus() != 1) return false;
+        if (order.getRiderId() != null) return false; // 已被其他骑手接单
+        order.setRiderId(riderId);
+        order.setDeliveryStatus(0); // 待取货
+        return this.updateById(order);
+    }
+
+    @Override
+    @Transactional
+    public boolean pickupOrder(Long orderId, Long riderId) {
+        Order order = this.getById(orderId);
+        if (order == null || !riderId.equals(order.getRiderId())) return false;
+        if (order.getDeliveryStatus() != 0) return false;
+        order.setDeliveryStatus(1); // 配送中
+        order.setStatus(4);         // 订单状态 → 配送中
+        return this.updateById(order);
+    }
+
+    @Override
+    @Transactional
+    public boolean deliverOrder(Long orderId, Long riderId) {
+        Order order = this.getById(orderId);
+        if (order == null || !riderId.equals(order.getRiderId())) return false;
+        if (order.getDeliveryStatus() != 1) return false;
+        order.setDeliveryStatus(2); // 已送达
+        order.setStatus(3);         // 订单状态 → 已完成
+        return this.updateById(order);
+    }
+
+    @Override
+    public PageResult<OrderVO> getRiderOrders(Long riderId, Integer deliveryStatus, Integer pageNum, Integer pageSize) {
+        Page<Order> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Order::getRiderId, riderId);
+        if (deliveryStatus != null) {
+            wrapper.eq(Order::getDeliveryStatus, deliveryStatus);
+        }
+        wrapper.orderByDesc(Order::getCreateTime);
+        Page<Order> resultPage = this.page(page, wrapper);
+        List<OrderVO> voList = resultPage.getRecords().stream()
+                .map(this::convertToVO).collect(Collectors.toList());
+        return new PageResult<>(voList, resultPage.getTotal());
+    }
     public List<Order> getOrdersByUserId(Long userId) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getUserId, userId)
@@ -261,6 +341,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         vo.setTotalAmount(order.getTotalAmount());
         vo.setStatus(order.getStatus());
         vo.setStatusText(getStatusText(order.getStatus()));
+        vo.setRiderId(order.getRiderId());
+        vo.setDeliveryStatus(order.getDeliveryStatus());
+        vo.setDeliveryStatusText(getDeliveryStatusText(order.getDeliveryStatus()));
         vo.setReceiver(order.getReceiver());
         vo.setAddress(order.getAddress());
         vo.setRemark(order.getRemark());
@@ -299,6 +382,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             case 1: return "已支付";
             case 2: return "已取消";
             case 3: return "已完成";
+            case 4: return "配送中";
+            default: return "未知";
+        }
+    }
+
+    private String getDeliveryStatusText(Integer ds) {
+        if (ds == null) return null;
+        switch (ds) {
+            case 0: return "待取货";
+            case 1: return "配送中";
+            case 2: return "已送达";
             default: return "未知";
         }
     }

@@ -27,6 +27,16 @@ const routes = [
     name: 'AdminLogin',
     component: () => import('@/views/admin/AdminLogin.vue')
   },
+  {
+    path: '/rider/login',
+    name: 'RiderLogin',
+    component: () => import('@/views/rider/RiderLogin.vue')
+  },
+  {
+    path: '/rider/register',
+    name: 'RiderRegister',
+    component: () => import('@/views/rider/Register.vue')
+  },
 
   // ========== 用户端路由 ==========
   {
@@ -35,6 +45,7 @@ const routes = [
     meta: { requiresAuth: true, role: 'user' },
     children: [
       { path: '', name: 'Home', component: () => import('@/views/Home.vue') },
+      { path: 'shop/:id', name: 'ShopPage', component: () => import('@/views/ShopPage.vue') },
       { path: 'cart', name: 'Cart', component: () => import('@/views/Cart.vue') },
       { path: 'orders', name: 'Orders', component: () => import('@/views/Orders.vue') },
       { path: 'points', name: 'Points', component: () => import('@/views/Points.vue') },
@@ -52,6 +63,18 @@ const routes = [
       { path: 'shop', name: 'MerchantShop', component: () => import('@/views/merchant/Shop.vue') },
       { path: 'dishes', name: 'MerchantDishes', component: () => import('@/views/merchant/Dishes.vue') },
       { path: 'orders', name: 'MerchantOrders', component: () => import('@/views/merchant/Orders.vue') }
+    ]
+  },
+
+  // ========== 骑手端路由 ==========
+  {
+    path: '/rider',
+    component: () => import('@/components/Layout/RiderLayout.vue'),
+    meta: { requiresAuth: true, role: 'rider' },
+    children: [
+      { path: '', name: 'RiderDashboard', component: () => import('@/views/rider/Dashboard.vue') },
+      { path: 'orders', name: 'RiderOrders', component: () => import('@/views/rider/AvailableOrders.vue') },
+      { path: 'deliveries', name: 'RiderDeliveries', component: () => import('@/views/rider/MyDeliveries.vue') }
     ]
   },
 
@@ -88,6 +111,8 @@ router.beforeEach((to, from, next) => {
         next('/merchant/login')
       } else if (role === 'admin') {
         next('/admin/login')
+      } else if (role === 'rider') {
+        next('/rider/login')
       } else {
         next('/login')
       }
@@ -97,11 +122,12 @@ router.beforeEach((to, from, next) => {
     // 检查角色权限
     const requiredRole = to.meta.role
     if (requiredRole && userRole !== requiredRole) {
-      // 角色不匹配，跳转到该角色对应的首页
       if (userRole === 'merchant') {
         next('/merchant')
       } else if (userRole === 'admin') {
         next('/admin')
+      } else if (userRole === 'rider') {
+        next('/rider')
       } else {
         next('/')
       }
@@ -110,11 +136,13 @@ router.beforeEach((to, from, next) => {
   }
 
   // 已登录用户访问登录页，自动跳转
-  if (token && (to.path === '/login' || to.path === '/merchant/login' || to.path === '/admin/login')) {
+  if (token && (to.path === '/login' || to.path === '/merchant/login' || to.path === '/admin/login' || to.path === '/rider/login')) {
     if (userRole === 'merchant') {
       next('/merchant')
     } else if (userRole === 'admin') {
       next('/admin')
+    } else if (userRole === 'rider') {
+      next('/rider')
     } else {
       next('/')
     }

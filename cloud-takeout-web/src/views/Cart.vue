@@ -12,6 +12,14 @@
     </div>
 
     <div v-else class="cart-content">
+      <!-- 店铺信息 -->
+      <div class="shop-banner" v-if="cartStore.shopId">
+        <span class="shop-banner-icon">🏪</span>
+        正在 <strong>{{ shopName }}</strong> 下单
+        <span style="flex:1"></span>
+        <el-button link type="primary" size="small" @click="$router.push('/shop/' + cartStore.shopId)">返回店铺</el-button>
+      </div>
+
       <div class="cart-list">
         <div v-for="item in cartStore.items" :key="item.dishId" class="cart-item">
           <img :src="item.image || defaultImage" class="cart-item-img">
@@ -58,10 +66,11 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { orderApi } from '@/api/order'
+import { shopApi } from '@/api/shop'
 import { useCartStore } from '@/stores/cart'
 import { useUserStore } from '@/stores/user'
 
@@ -71,7 +80,8 @@ const userStore = useUserStore()
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const orderFormRef = ref()
-const defaultImage = 'https://picsum.photos/60/60?random=1'
+const defaultImage = '/images/dishes/default.svg'
+const shopName = ref('')
 
 const orderForm = reactive({ receiver: '', phone: '', address: '' })
 const orderRules = {
@@ -79,6 +89,20 @@ const orderRules = {
   phone: [{ required: true, message: '请输入电话', trigger: 'blur' }, { pattern: /^1[3-9]\d{9}$/, message: '手机号格式错误', trigger: 'blur' }],
   address: [{ required: true, message: '请输入地址', trigger: 'blur' }]
 }
+
+// 加载店铺名称
+const loadShopName = async () => {
+  if (!cartStore.shopId) { shopName.value = ''; return }
+  try {
+    const res = await shopApi.getAll()
+    if (res.code === 200) {
+      const shop = (res.data || []).find(s => s.id === cartStore.shopId)
+      shopName.value = shop ? shop.name : '未知店铺'
+    }
+  } catch { shopName.value = '' }
+}
+
+watch(() => cartStore.shopId, loadShopName, { immediate: true })
 
 const handleCheckout = () => {
   orderForm.receiver = userStore.userInfo?.nickname || userStore.userInfo?.username || ''
@@ -103,30 +127,55 @@ const submitOrder = async () => {
 </script>
 
 <style scoped>
-.cart-page { max-width: 800px; margin: 0 auto; }
+.cart-page { max-width: 780px; margin: 0 auto; animation: fadeInUp .35s var(--transition); }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); }
-.page-header h2 { font-size: 22px; font-weight: 700; color: var(--color-text); }
-.empty-state { padding: var(--space-xl) 0; text-align: center; }
+.page-header h2 { font-size: 24px; font-weight: 800; color: var(--color-text); letter-spacing: -.02em; }
+.empty-state {
+  padding: var(--space-2xl) 0; text-align: center;
+  background: var(--color-surface); border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-light);
+}
+.shop-banner {
+  padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-md);
+  background: var(--gradient-card-1); border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary-bg-strong);
+  color: var(--color-primary); font-size: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.shop-banner strong { font-weight: 700; }
+.shop-banner-icon { font-size: 20px; }
+
 .cart-list { display: flex; flex-direction: column; gap: var(--space-sm); }
 .cart-item {
   display: flex; align-items: center; gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   background: var(--color-surface); border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
+  transition: all var(--transition);
 }
-.cart-item-img { width: 56px; height: 56px; border-radius: var(--radius-sm); object-fit: cover; }
+.cart-item:hover { border-color: var(--color-border); box-shadow: var(--shadow-xs); }
+.cart-item-img {
+  width: 60px; height: 60px; border-radius: var(--radius-sm);
+  object-fit: cover; background: var(--color-bg-alt);
+}
 .cart-item-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.cart-item-name { font-weight: 600; color: var(--color-text); }
+.cart-item-name { font-weight: 600; color: var(--color-text); font-size: 15px; }
 .cart-item-price { font-size: 13px; color: var(--color-text-secondary); }
-.cart-item-subtotal { font-weight: 600; color: var(--color-primary); min-width: 60px; text-align: right; }
+.cart-item-subtotal { font-weight: 700; color: var(--color-primary); min-width: 60px; text-align: right; font-size: 15px; }
 .cart-summary {
-  margin-top: var(--space-md); padding: var(--space-md);
-  background: var(--color-surface); border-radius: var(--radius-md);
+  margin-top: var(--space-md); padding: var(--space-lg) var(--space-md);
+  background: var(--color-surface); border-radius: var(--radius-lg);
   border: 1px solid var(--color-border-light);
   display: flex; justify-content: space-between; align-items: center;
+  box-shadow: var(--shadow-sm);
 }
 .summary-info { display: flex; flex-direction: column; gap: 4px; color: var(--color-text-secondary); }
-.summary-total strong { font-size: 22px; color: var(--color-primary); }
-.order-amount-display { text-align: center; padding: var(--space-sm) 0; font-size: 15px; color: var(--color-text-secondary); }
-.order-amount-display span { font-size: 24px; font-weight: 700; color: var(--color-primary); margin-left: 8px; }
+.summary-total strong { font-size: 24px; color: var(--color-primary); }
+.order-amount-display {
+  text-align: center; padding: var(--space-sm) 0;
+  font-size: 15px; color: var(--color-text-secondary);
+  background: var(--gradient-warm); border-radius: var(--radius-md);
+  margin: var(--space-sm) 0;
+}
+.order-amount-display span { font-size: 24px; font-weight: 800; color: var(--color-primary); margin-left: 8px; }
 </style>

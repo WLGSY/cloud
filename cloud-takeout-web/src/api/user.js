@@ -117,6 +117,11 @@ export const userApi = {
     return request.put(`/api/user/${id}/role`, { role })
   },
 
+  // 上传头像
+  uploadAvatar(avatarUrl, userId) {
+    return request.post('/api/user/avatar', { avatarUrl, userId: String(userId) })
+  },
+
   // 获取统计数据
   getStats() {
     return request.get('/api/user/stats')

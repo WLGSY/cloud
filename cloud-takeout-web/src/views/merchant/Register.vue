@@ -74,14 +74,28 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-.register-page { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--color-bg); padding: var(--space-md); }
-.register-card { width: 460px; padding: var(--space-xl); background: var(--color-surface); border-radius: var(--radius-xl); border: 1px solid var(--color-border-light); box-shadow: var(--shadow-md); }
+.register-page {
+  display: flex; justify-content: center; align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fef9ef 0%, #fff7ed 30%, #fef2f2 60%, #faf5ff 100%);
+  padding: var(--space-md);
+}
+.register-card {
+  width: 460px; padding: var(--space-xl);
+  background: var(--color-surface); border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-light); box-shadow: var(--shadow-lg);
+  animation: scaleIn .4s var(--transition);
+}
 .card-header { text-align: center; margin-bottom: var(--space-lg); }
-.logo-icon { font-size: 40px; margin-bottom: var(--space-sm); }
-.card-header h1 { font-size: 24px; font-weight: 700; color: var(--color-text); letter-spacing: -0.03em; margin-bottom: 4px; }
+.logo-icon {
+  font-size: 48px; margin-bottom: var(--space-sm);
+  display: inline-block; animation: fadeInUp .6s var(--transition);
+}
+.card-header h1 { font-size: 26px; font-weight: 800; color: var(--color-text); letter-spacing: -.03em; margin-bottom: 4px; }
 .card-header p { font-size: 14px; color: var(--color-text-secondary); }
-.submit-btn { width: 100%; margin-top: var(--space-sm); }
+.submit-btn { width: 100%; margin-top: var(--space-sm); height: 44px; font-size: 15px; }
 .card-footer { margin-top: var(--space-md); text-align: center; font-size: 13px; color: var(--color-text-secondary); }
-.card-footer a { color: var(--color-primary); text-decoration: none; }
+.card-footer a { color: var(--color-primary); text-decoration: none; font-weight: 500; }
+.card-footer a:hover { color: var(--color-primary-dark); }
 .sep { margin: 0 8px; color: var(--color-border); }
 </style>
